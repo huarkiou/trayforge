@@ -260,6 +260,7 @@ class TestBuildProcessRow:
             "cleanup_cwd": False,
             "webui_pattern": "",
             "delete_before_start": "",
+            "max_restarts": 0,
         }
         v = dlg._build_process_row(frame, defaults)
         expected_keys = {
@@ -272,6 +273,7 @@ class TestBuildProcessRow:
             "cleanup_cwd",
             "webui_pattern",
             "delete_before_start",
+            "max_restarts",
         }
         assert set(v.keys()) == expected_keys
 
@@ -287,6 +289,7 @@ class TestBuildProcessRow:
             "cleanup_cwd": True,
             "webui_pattern": "http://x",
             "delete_before_start": "a.lock",
+            "max_restarts": 0,
         }
         v = dlg._build_process_row(frame, defaults)
         assert v["name"].get() == "MyProc"
@@ -298,3 +301,4 @@ class TestBuildProcessRow:
         assert v["cleanup_cwd"].get() is True
         assert v["webui_pattern"].get() == "http://x"
         assert v["delete_before_start"].get() == "a.lock"
+        assert v["max_restarts"].get() == "0"

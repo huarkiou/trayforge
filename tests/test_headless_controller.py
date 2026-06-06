@@ -22,7 +22,7 @@ def headless_server():
         "webui_url": None,
         "has_webui": False,
         "restarts": 0,
-        "max_restarts": 3,
+        "max_restarts": 0,
     }
     pm.start = MagicMock()
     pm.poll_crashes = MagicMock()

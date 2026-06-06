@@ -29,7 +29,7 @@ def server():
             "webui_url": "http://127.0.0.1:6099/webui",
             "has_webui": True,
             "restarts": 1,
-            "max_restarts": 3,
+            "max_restarts": 0,
         }
         if name == "NapCat"
         else {
@@ -39,7 +39,7 @@ def server():
             "webui_url": None,
             "has_webui": True,
             "restarts": 0,
-            "max_restarts": 3,
+            "max_restarts": 0,
         }
         if name == "AstrBot"
         else None
@@ -103,7 +103,7 @@ class TestStatus:
         assert "Running" in body
         assert "PID:      12345" in body
         assert "WebUI:    http://127.0.0.1:6099/webui" in body
-        assert "Restarts: 1/3" in body
+        assert "Restarts: 1/0" in body
 
     def test_returns_404_for_unknown_process(self, server):
         _, port, _ = server
@@ -249,7 +249,7 @@ class TestQueueHandler:
                 "webui_url": None,
                 "has_webui": False,
                 "restarts": 0,
-                "max_restarts": 3,
+                "max_restarts": 0,
             }
             if name == "NapCat"
             else None
