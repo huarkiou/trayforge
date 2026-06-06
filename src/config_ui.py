@@ -173,7 +173,10 @@ class ConfigDialog:
             row=2, column=1, sticky=tk.EW, padx=(5, 0)
         )
         ttk.Button(
-            frame, text="...", width=3, command=lambda var=v["cmd"]: self._edit_cmd(var)
+            frame,
+            text="...",
+            width=3,
+            command=lambda var=v["cmd"]: self._edit_cmd(var),  # type: ignore[misc]
         ).grid(row=2, column=2)
 
         # Row 3: Encoding
@@ -234,16 +237,16 @@ class ConfigDialog:
         # Row 8: Action buttons (Copy, ▲, ▼, Delete)
         btn_frame = ttk.Frame(frame)
         btn_frame.grid(row=8, column=0, columnspan=3, sticky=tk.E, pady=(5, 0))
-        ttk.Button(btn_frame, text="▲", width=3, command=lambda f=frame: self._move_up(f)).pack(
+        ttk.Button(btn_frame, text="▲", width=3, command=lambda f=frame: self._move_up(f)).pack(  # type: ignore[misc]
             side=tk.LEFT, padx=(0, 2)
         )
-        ttk.Button(btn_frame, text="▼", width=3, command=lambda f=frame: self._move_down(f)).pack(
+        ttk.Button(btn_frame, text="▼", width=3, command=lambda f=frame: self._move_down(f)).pack(  # type: ignore[misc]
             side=tk.LEFT, padx=(0, 6)
         )
-        ttk.Button(btn_frame, text="Copy", command=lambda f=frame: self._copy_process(f)).pack(
+        ttk.Button(btn_frame, text="Copy", command=lambda f=frame: self._copy_process(f)).pack(  # type: ignore[misc]
             side=tk.LEFT, padx=(0, 2)
         )
-        ttk.Button(btn_frame, text="Delete", command=lambda f=frame: self._delete_process(f)).pack(
+        ttk.Button(btn_frame, text="Delete", command=lambda f=frame: self._delete_process(f)).pack(  # type: ignore[misc]
             side=tk.LEFT
         )
 

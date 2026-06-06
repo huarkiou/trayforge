@@ -1,7 +1,7 @@
 """System tray — dynamic menus for all managed processes."""
 
 import threading
-import pystray
+import pystray  # type: ignore[import-untyped]
 from pystray import Menu, MenuItem
 from typing import Callable
 from icon import get_green_icon, get_yellow_icon, get_red_icon
