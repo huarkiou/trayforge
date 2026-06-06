@@ -517,7 +517,7 @@ class ConfigDialog:
 
     def _on_close(self) -> None:
         if self._root_was_hidden:
-            self.dialog.master.withdraw()
+            self.dialog.master.withdraw()  # type: ignore[attr-defined]
         self.dialog.destroy()
 
     def _on_cancel(self) -> None:

@@ -1,9 +1,15 @@
 """AppController — orchestrates process_mgr, tray_ui, main_window lifecycle."""
 
+from __future__ import annotations
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 import time
 import webbrowser
 import logging
+
+if TYPE_CHECKING:
+    from config_ui import ConfigDialog
+    from http.server import HTTPServer
 import os
 import threading
 from http_server import create_server
@@ -21,9 +27,9 @@ class AppController:
         self._buffers: dict[str, list[str]] = {}
         self._last_poll = 0.0
         self._last_output = 0.0
-        self._settings_dialog = None
+        self._settings_dialog: ConfigDialog | None = None
         self._settings_open = False
-        self._http_server = None
+        self._http_server: HTTPServer | None = None
 
     def _reload_config(self) -> bool:
         """Reload config from disk. Returns True on success."""
@@ -125,7 +131,7 @@ class AppController:
         if now - self._last_output >= interval:
             self._last_output = now
             for name in self._pm.process_names():
-                buf = self._buffers.get(name)
+                buf = self._buffers.get(name)  # type: ignore[assignment]
                 if buf:
                     chunk = "\n".join(buf)
                     self._window.append_output(name, chunk)

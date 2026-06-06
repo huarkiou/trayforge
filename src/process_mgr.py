@@ -108,7 +108,7 @@ class ProcessManager:
         result: ProcessStatus = {
             "name": name,
             "running": running,
-            "pid": proc.pid if running else None,
+            "pid": proc.pid if (running and proc is not None) else None,
             "webui_url": ps.webui_url,
             "has_webui": ps.cfg.get("webui_pattern") is not None,
             "restarts": ps.restarts,

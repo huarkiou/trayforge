@@ -75,6 +75,7 @@ class TrayForgeHTTPHandler(http.server.BaseHTTPRequestHandler):
 
     def _marshal(self, fn):
         """Run fn on tkinter main thread and return its result. Blocks until done."""
+        assert self.root is not None
         result_queue: queue.Queue = queue.Queue()
         event = threading.Event()
 
@@ -112,6 +113,8 @@ class TrayForgeHTTPHandler(http.server.BaseHTTPRequestHandler):
     # --- Handlers ---
 
     def _handle_list(self) -> None:
+        assert self.pm is not None
+
         def do_list() -> str:
             names = self.pm.process_names()
             lines = []
@@ -130,6 +133,7 @@ class TrayForgeHTTPHandler(http.server.BaseHTTPRequestHandler):
         self._send_text(200, result)
 
     def _handle_status(self, params: dict) -> None:
+        assert self.pm is not None
         name = params.get("name", [None])[0]
         if not name:
             self._send_error(400, "Missing name parameter")
@@ -162,6 +166,8 @@ class TrayForgeHTTPHandler(http.server.BaseHTTPRequestHandler):
             self._send_error(400, "Missing name parameter")
             return
 
+        assert self.pm is not None
+
         def do_webui() -> str:
             if self.pm.get_status(name) is None:
                 raise _HTTPError(404, f"Unknown process: {name}")
@@ -177,6 +183,7 @@ class TrayForgeHTTPHandler(http.server.BaseHTTPRequestHandler):
             self._send_text(200, result)
 
     def _handle_action(self, action: str, params: dict) -> None:
+        assert self.pm is not None
         name = params.get("name", [None])[0]
         if not name:
             self._send_error(400, "Missing name parameter")
@@ -205,6 +212,8 @@ class TrayForgeHTTPHandler(http.server.BaseHTTPRequestHandler):
             self._send_text(200, result)
 
     def _handle_reload(self) -> None:
+        assert self.reload_fn is not None
+
         def do_reload() -> str:
             ok = self.reload_fn()
             if ok:
@@ -225,7 +234,7 @@ class QueueHandler(TrayForgeHTTPHandler):
         action_queue: queue.Queue — shared queue for marshaling to main thread
     """
 
-    action_queue = None
+    action_queue: queue.Queue | None = None
 
     def _marshal(self, fn):
         """Override: post to action_queue instead of root.after(), block on per-request Event."""
@@ -260,7 +269,7 @@ def create_server(
 
     For headless mode, pass handler_cls=QueueHandler and root=None.
     """
-    handler_cls.pm = pm
-    handler_cls.root = root
-    handler_cls.reload_fn = reload_fn
+    handler_cls.pm = pm  # type: ignore[attr-defined]
+    handler_cls.root = root  # type: ignore[attr-defined]
+    handler_cls.reload_fn = reload_fn  # type: ignore[attr-defined]
     return http.server.HTTPServer(("127.0.0.1", 0), handler_cls)
