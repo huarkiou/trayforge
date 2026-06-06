@@ -86,7 +86,6 @@ def _make_config(processes=None, max_restarts=0):
                 "encoding": "utf-8",
                 "singleton": False,
                 "autostart": False,
-                "cleanup_cwd": False,
                 "webui_pattern": None,
                 "delete_before_start": [],
                 "max_restarts": max_restarts,
@@ -99,8 +98,6 @@ def _make_config(processes=None, max_restarts=0):
         "autostart": False,
     }
 ```
-
-Add `cleanup_cwd` too (it was missing from the default — discovered during this change).
 
 - [ ] **Step 3: Rewrite `test_max_restarts_reached_stops_process` to use per-process config**
 
@@ -183,9 +180,9 @@ MAX_RESTARTS = 3
 
 - [ ] **Step 2: Update `poll_crashes()` — restart gate and messages**
 
-In `poll_crashes()`, change the `MAX_RESTARTS` references. The method has three sites:
+In `poll_crashes()`, change the `MAX_RESTARTS` references. Compute `max_r` once at the top of the per-process loop body. The method has three sites:
 
-Site 1 (~line 144) — restart limit gate:
+Site 1 (~line 144) — restart limit gate. When `max_r == 0`, emit a simpler exit message (no "max restart attempts" phrasing):
 ```python
 # Before:
                 if ps.restarts >= MAX_RESTARTS:
@@ -202,15 +199,21 @@ Site 1 (~line 144) — restart limit gate:
                 if ps.restarts >= max_r:
                     ps.proc = None
                     ps.webui_url = None
-                    self._system_msg(
-                        name,
-                        f"{name} max restart attempts ({max_r}) reached, stopped",
-                    )
+                    if max_r > 0:
+                        self._system_msg(
+                            name,
+                            f"{name} max restart attempts ({max_r}) reached, stopped",
+                        )
+                    else:
+                        self._system_msg(
+                            name,
+                            f"{name} exited (code={ret})",
+                        )
                     self._emit_status()
                     continue
 ```
 
-Site 2 (~line 172) — auto-restart log message:
+Site 2 (~line 172) — auto-restart log message (only reached when `max_r > 0` since `ps.restarts >= max_r` with `max_r=0` always hits the gate):
 ```python
 # Before:
                 self._system_msg(
@@ -218,7 +221,6 @@ Site 2 (~line 172) — auto-restart log message:
                     f"{name} exited (code={ret}), auto-restarting ({ps.restarts}/{MAX_RESTARTS})...",
                 )
 # After:
-                max_r = ps.cfg.get("max_restarts", 0)
                 self._system_msg(
                     name,
                     f"{name} exited (code={ret}), auto-restarting ({ps.restarts}/{max_r})...",
@@ -246,7 +248,7 @@ Site 2 (~line 172) — auto-restart log message:
 - [ ] **Step 5: Run tests — expect pass**
 
 Run: `uv run pytest tests/test_process_mgr.py -v`
-Expected: All 22 tests PASS (including the new one and the updated ones)
+Expected: All 23 tests PASS (including the new one and the updated ones)
 
 - [ ] **Step 6: Commit**
 
@@ -299,24 +301,14 @@ In the `_add_process` call's defaults dict, add after `"delete_before_start": ..
                     "max_restarts": str(proc.get("max_restarts", 0)),
 ```
 
-- [ ] **Step 4: Add `max_restarts` save to `_on_save()`**
+- [ ] **Step 4: Add `max_restarts` save to `_on_save()` with inline validation**
 
 In the processes builder loop, add after `"delete_before_start": ...`:
 ```python
-                    "max_restarts": _safe_int(v["max_restarts"].get()),
+                    "max_restarts": int(v["max_restarts"].get() or 0),
 ```
 
-And add the `_safe_int` helper as a static method or module-level function to guard against empty string:
-
-```python
-def _safe_int(s: str, default: int = 0) -> int:
-    try:
-        return int(s)
-    except (ValueError, TypeError):
-        return default
-```
-
-Place this at module level (top of file, after imports) for use by `_on_save`.
+Using `or 0` guards against empty-string input from direct text editing (Spinbox `from_`/`to` only clamp arrow-button actions, not typed text). If the value is empty string, `int("" or 0)` → `int(0)` → `0`. No module-level helper needed.
 
 - [ ] **Step 5: Add `max_restarts` copy to `_copy_process()`**
 
@@ -347,9 +339,9 @@ git commit -m "feat: add max_restarts Spinbox to config UI"
 - Modify: `tests/test_http_server.py`
 - Modify: `tests/test_headless_controller.py`
 
-- [ ] **Step 1: Update `test_http_server.py` mock `max_restarts` values**
+- [ ] **Step 1: Update `test_http_server.py` mock values and assertions**
 
-Three locations (~lines 32, 42, 252) — change `"max_restarts": 3` to `"max_restarts": 0`:
+Mock values (three locations ~lines 32, 42, 252) — change `"max_restarts": 3` to `"max_restarts": 0`:
 
 ```python
 # Line 32:
@@ -358,6 +350,12 @@ Three locations (~lines 32, 42, 252) — change `"max_restarts": 3` to `"max_res
             "max_restarts": 0,
 # Line 252:
                 "max_restarts": 0,
+```
+
+Status endpoint assertion (~line 120) — change `"Restarts: 1/3"` to `"Restarts: 1/0"`:
+
+```python
+        assert "Restarts: 1/0" in body
 ```
 
 - [ ] **Step 2: Update `test_headless_controller.py` mock value**
@@ -371,7 +369,7 @@ Line 25 — change `"max_restarts": 3` to `"max_restarts": 0`:
 - [ ] **Step 3: Run full test suite**
 
 Run: `uv run pytest tests/ -v`
-Expected: 134 tests PASS
+Expected: 135 tests PASS
 
 - [ ] **Step 4: Run ruff**
 
