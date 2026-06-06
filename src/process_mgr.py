@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 
 _STRIP_ANSI = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 
-MAX_RESTARTS = 3
 RESTART_COOLDOWN = 60.0
 
 
@@ -112,7 +111,7 @@ class ProcessManager:
             "webui_url": ps.webui_url,
             "has_webui": ps.cfg.get("webui_pattern") is not None,
             "restarts": ps.restarts,
-            "max_restarts": MAX_RESTARTS,
+            "max_restarts": ps.cfg.get("max_restarts", 0),
         }
         return result
 
@@ -139,15 +138,22 @@ class ProcessManager:
         for name, ps in self._procs.items():
             if ps.proc is None:
                 continue
+            max_r = ps.cfg.get("max_restarts", 0)
             ret = ps.proc.poll()
             if ret is not None:
-                if ps.restarts >= MAX_RESTARTS:
+                if ps.restarts >= max_r:
                     ps.proc = None
                     ps.webui_url = None
-                    self._system_msg(
-                        name,
-                        f"{name} max restart attempts ({MAX_RESTARTS}) reached, stopped",
-                    )
+                    if max_r > 0:
+                        self._system_msg(
+                            name,
+                            f"{name} max restart attempts ({max_r}) reached, stopped",
+                        )
+                    else:
+                        self._system_msg(
+                            name,
+                            f"{name} exited (code={ret})",
+                        )
                     self._emit_status()
                     continue
 
@@ -169,7 +175,7 @@ class ProcessManager:
                 ps.last_restart = now
                 self._system_msg(
                     name,
-                    f"{name} exited (code={ret}), auto-restarting ({ps.restarts}/{MAX_RESTARTS})...",
+                    f"{name} exited (code={ret}), auto-restarting ({ps.restarts}/{max_r})...",
                 )
                 self._start(name, _reset_counter=False)
                 self._emit_status()
@@ -370,7 +376,7 @@ class ProcessManager:
             return
         pid = ps.proc.pid
         logger.info("Stopping %s PID=%d", name, pid)
-        ps.restarts = MAX_RESTARTS
+        ps.restarts = ps.cfg.get("max_restarts", 0)
         if sys.platform == "win32":
             subprocess.run(
                 ["taskkill", "/f", "/t", "/pid", str(pid)],
