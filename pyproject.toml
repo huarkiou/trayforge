@@ -15,8 +15,11 @@ typeCheckingMode = "basic"
 
 [dependency-groups]
 dev = [
+    "mypy>=2.1.0",
     "pytest>=9.0.3",
     "ruff>=0.12.0",
+    "ty>=0.0.42",
+    "types-psutil>=7.2.2.20260518",
 ]
 
 [tool.ruff]

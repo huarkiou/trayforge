@@ -1,5 +1,6 @@
 """AppController — orchestrates process_mgr, tray_ui, main_window lifecycle."""
 
+from collections.abc import Callable
 import time
 import webbrowser
 import logging
@@ -43,7 +44,7 @@ class AppController:
 
     # --- Settings callback ---
 
-    def _make_settings_callback(self) -> callable:
+    def _make_settings_callback(self) -> Callable[..., None]:
         from config_ui import ConfigDialog
         from logger import get_main_logger
 

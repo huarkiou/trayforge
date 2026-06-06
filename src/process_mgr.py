@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import subprocess
 import sys
@@ -40,8 +41,8 @@ class _ProcState:
 class ProcessManager:
     def __init__(self, config: AppConfig) -> None:
         self._procs: dict[str, _ProcState] = {}
-        self._status_listeners: list[callable] = []
-        self._notify_listeners: list[callable] = []
+        self._status_listeners: list[Callable[..., None]] = []
+        self._notify_listeners: list[Callable[..., None]] = []
         self._build_from_config(config)
 
     # --- Public API ---
@@ -53,10 +54,10 @@ class ProcessManager:
     def process_names(self) -> list[str]:
         return list(self._procs.keys())
 
-    def on_status_change(self, cb: callable) -> None:
+    def on_status_change(self, cb: Callable[..., None]) -> None:
         self._status_listeners.append(cb)
 
-    def on_notification(self, cb: callable) -> None:
+    def on_notification(self, cb: Callable[..., None]) -> None:
         self._notify_listeners.append(cb)
 
     def start(self, name: str) -> None:

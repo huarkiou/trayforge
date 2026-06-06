@@ -9,19 +9,19 @@ from icon import get_app_icon
 from config import load_config, save_config, get_default_config
 from startup import enable_autostart, disable_autostart, is_autostart_enabled
 from logger import get_main_logger
-from trayforge_types import AppConfig
+from trayforge_types import AppConfig, ProcessConfig
 
 
 class ConfigDialog:
     def __init__(self, root: tk.Tk) -> None:
         self._logger = get_main_logger()
-        self._result: dict | None = None
+        self._result: AppConfig | None = None
         self._root_was_hidden = False
 
         self.dialog = tk.Toplevel(root)
         self.dialog.title("TrayForge - Settings")
         self._tk_icon = ImageTk.PhotoImage(get_app_icon())
-        self.dialog.iconphoto(True, self._tk_icon)
+        self.dialog.iconphoto(True, self._tk_icon)  # type: ignore[arg-type]
         self.dialog.geometry("650x520")
         self.dialog.resizable(False, False)
         self.dialog.transient(root)
@@ -162,7 +162,7 @@ class ConfigDialog:
         ttk.Entry(frame, textvariable=v["cwd"], width=50).grid(
             row=1, column=1, sticky=tk.EW, padx=5
         )
-        ttk.Button(frame, text="...", width=3, command=lambda: self._browse_dir(v["cwd"])).grid(
+        ttk.Button(frame, text="...", width=3, command=lambda: self._browse_dir(v["cwd"])).grid(  # type: ignore[arg-type]
             row=1, column=2
         )
 
@@ -252,7 +252,7 @@ class ConfigDialog:
 
     # --- Process list manipulation ---
 
-    def _find_index(self, frame: ttk.Frame) -> int | None:
+    def _find_index(self, frame: ttk.LabelFrame) -> int | None:
         for i, entry in enumerate(self._proc_entries):
             if entry["frame"] is frame:
                 return i
@@ -302,7 +302,7 @@ class ConfigDialog:
         self._renumber()
         self._repack()
 
-    def _copy_process(self, frame: ttk.Frame) -> None:
+    def _copy_process(self, frame: ttk.LabelFrame) -> None:
         idx = self._find_index(frame)
         if idx is None:
             return
@@ -321,7 +321,7 @@ class ConfigDialog:
         }
         self._insert_process(idx + 1, defaults)
 
-    def _move_up(self, frame: ttk.Frame) -> None:
+    def _move_up(self, frame: ttk.LabelFrame) -> None:
         idx = self._find_index(frame)
         if idx is None or idx <= 0:
             return
@@ -332,7 +332,7 @@ class ConfigDialog:
         self._renumber()
         self._repack()
 
-    def _move_down(self, frame: ttk.Frame) -> None:
+    def _move_down(self, frame: ttk.LabelFrame) -> None:
         idx = self._find_index(frame)
         if idx is None or idx >= len(self._proc_entries) - 1:
             return
@@ -343,7 +343,7 @@ class ConfigDialog:
         self._renumber()
         self._repack()
 
-    def _delete_process(self, frame: ttk.Frame) -> None:
+    def _delete_process(self, frame: ttk.LabelFrame) -> None:
         idx = self._find_index(frame)
         if idx is None:
             return
@@ -476,7 +476,7 @@ class ConfigDialog:
             messagebox.showerror("Validation Error", error, parent=self.dialog)
             return
 
-        processes = []
+        processes: list[ProcessConfig] = []
         for entry in self._proc_entries:
             v = entry["vars"]
             delete_files = [
@@ -497,7 +497,7 @@ class ConfigDialog:
                 }
             )
 
-        config = {
+        config: AppConfig = {
             "processes": processes,
             "output_refresh_ms": int(self.output_refresh_var.get()),
             "poll_interval_ms": int(self.poll_interval_var.get()),

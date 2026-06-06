@@ -1,5 +1,6 @@
 """Main window with dynamic tabs for all managed processes."""
 
+from collections.abc import Callable
 import tkinter as tk
 from tkinter import ttk
 from PIL import ImageTk
@@ -23,7 +24,7 @@ class MainWindow:
         self.root = tk.Tk()
         self.root.title("TrayForge - Process Control")
         self._tk_icon = ImageTk.PhotoImage(get_app_icon())
-        self.root.iconphoto(True, self._tk_icon)
+        self.root.iconphoto(True, self._tk_icon)  # type: ignore[arg-type]
 
         # Taskbar icon via .ico file
         if sys.platform == "win32":
@@ -49,7 +50,7 @@ class MainWindow:
         self._tabs: dict[str, tk.Text] = {}  # name -> Text widget
 
         self._visible = False
-        self._close_callback: callable | None = None
+        self._close_callback: Callable[..., None] | None = None
         self._logger = get_main_logger()
 
         self.root.withdraw()
@@ -119,7 +120,7 @@ class MainWindow:
         except tk.TclError:
             pass
 
-    def set_on_close(self, callback: callable) -> None:
+    def set_on_close(self, callback: Callable[..., None]) -> None:
         self._close_callback = callback
 
     def _on_close(self) -> None:
