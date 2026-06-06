@@ -107,3 +107,9 @@ Windows 托盘应用，通用进程管理（NapCat QQ、AstrBot、llama.cpp 等�
 - 架构：`AppController` 类集中管理事件循环、action 分发、输出缓冲、启停全流程；`main.pyw` 仅入口
 - 类型：`trayforge_types.py` 定义 `ProcessConfig` 和 `AppConfig` TypedDict，各模块统一引用
 - 后向兼容代码：确认已无旧数据依赖后再删除迁移逻辑，同时清理测试和文档引用
+- **新增 TypedDict 字段**：`cfg.get("new_field", default)` 确保旧配置向后兼容，无需迁移
+  - 所有构造该 TypedDict 的测试 fixture（包括 `_make_config()`、`conftest.py`、mock 返回值）都要同步更新
+  - `test_config_ui.py` 中有 expected keys/defaults 断言，会因新增字段失败，容易被遗漏
+- **UAC + `-WindowStyle Hidden`**：隐藏窗口导致 UAC 提权对话框也无法显示在安全桌面上，进程永不会启动
+  - 如果程序内部自提权用 `Start-Process -Verb RunAs`，不要加 `-WindowStyle Hidden`
+- 类型检查：`ty`（快速）和 `mypy`（严格），`callable` 直接用做类型注解在 Python 3.11+ 会报错，应改用 `typing.Callable`（项目预存问题）
