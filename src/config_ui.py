@@ -201,6 +201,19 @@ class ConfigDialog:
             side=tk.LEFT, padx=(10, 0)
         )
 
+        # Restart limit Spinbox (inline in check_frame)
+        ttk.Label(check_frame, text="Restart limit:").pack(side=tk.LEFT, padx=(15, 2))
+        v["max_restarts"] = tk.StringVar(value=str(defaults.get("max_restarts", "0")))
+        ttk.Spinbox(
+            check_frame,
+            textvariable=v["max_restarts"],
+            from_=0,
+            to=99,
+            increment=1,
+            width=4,
+        ).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(check_frame, text="(0=no restart)", foreground="gray").pack(side=tk.LEFT)
+
         # Row 5: WebUI Pattern
         ttk.Label(frame, text="WebUI Pattern:").grid(row=5, column=0, sticky=tk.W, pady=1)
         v["webui_pattern"] = tk.StringVar(value=defaults["webui_pattern"])
@@ -269,6 +282,7 @@ class ConfigDialog:
                 "cleanup_cwd": False,
                 "webui_pattern": "",
                 "delete_before_start": "",
+                "max_restarts": "0",
             }
 
         frame = ttk.LabelFrame(
@@ -303,6 +317,7 @@ class ConfigDialog:
             "cleanup_cwd": v["cleanup_cwd"].get(),
             "webui_pattern": v["webui_pattern"].get(),
             "delete_before_start": v["delete_before_start"].get(),
+            "max_restarts": v["max_restarts"].get(),
         }
         self._insert_process(idx + 1, defaults)
 
@@ -414,6 +429,7 @@ class ConfigDialog:
                     "cleanup_cwd": proc.get("cleanup_cwd", False),
                     "webui_pattern": proc.get("webui_pattern") or "",
                     "delete_before_start": ", ".join(proc.get("delete_before_start", [])),
+                    "max_restarts": str(proc.get("max_restarts", 0)),
                 }
             )
 
@@ -471,6 +487,7 @@ class ConfigDialog:
                     "cleanup_cwd": v["cleanup_cwd"].get(),
                     "webui_pattern": v["webui_pattern"].get().strip() or None,
                     "delete_before_start": delete_files,
+                    "max_restarts": int(v["max_restarts"].get() or 0),
                 }
             )
 
