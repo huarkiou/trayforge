@@ -116,14 +116,14 @@ class TrayForgeHTTPHandler(http.server.BaseHTTPRequestHandler):
         assert self.pm is not None
 
         def do_list() -> str:
-            names = self.pm.process_names()
+            names = self.pm.process_names()  # ty:ignore[unresolved-attribute]
             lines = []
             for name in names:
-                running = self.pm.is_running(name)
+                running = self.pm.is_running(name)  # ty:ignore[unresolved-attribute]
                 status = "Running" if running else "Stopped"
                 pid_str = ""
                 if running:
-                    s = self.pm.get_status(name)
+                    s = self.pm.get_status(name)  # ty:ignore[unresolved-attribute]
                     if s and s["pid"]:
                         pid_str = f"  PID={s['pid']}"
                 lines.append(f"{name:<20} {status}{pid_str}")
@@ -140,7 +140,7 @@ class TrayForgeHTTPHandler(http.server.BaseHTTPRequestHandler):
             return
 
         def do_status() -> str:
-            status = self.pm.get_status(name)
+            status = self.pm.get_status(name)  # ty:ignore[unresolved-attribute]
             if status is None:
                 raise _HTTPError(404, f"Unknown process: {name}")
             lines = [
@@ -169,9 +169,9 @@ class TrayForgeHTTPHandler(http.server.BaseHTTPRequestHandler):
         assert self.pm is not None
 
         def do_webui() -> str:
-            if self.pm.get_status(name) is None:
+            if self.pm.get_status(name) is None:  # ty:ignore[unresolved-attribute]
                 raise _HTTPError(404, f"Unknown process: {name}")
-            url = self.pm.get_webui_url(name)
+            url = self.pm.get_webui_url(name)  # ty:ignore[unresolved-attribute]
             if url:
                 return url
             return f"{name} WebUI URL not available"
@@ -192,12 +192,12 @@ class TrayForgeHTTPHandler(http.server.BaseHTTPRequestHandler):
         action_fn = getattr(self.pm, action)  # start / stop / restart
 
         def do_action() -> str:
-            if self.pm.get_status(name) is None:
+            if self.pm.get_status(name) is None:  # ty:ignore[unresolved-attribute]
                 raise _HTTPError(404, f"Unknown process: {name}")
 
-            if action == "start" and self.pm.is_running(name):
+            if action == "start" and self.pm.is_running(name):  # ty:ignore[unresolved-attribute]
                 return f"{name} is already running"
-            if action == "stop" and not self.pm.is_running(name):
+            if action == "stop" and not self.pm.is_running(name):  # ty:ignore[unresolved-attribute]
                 return f"{name} is not running"
 
             action_fn(name)
@@ -215,7 +215,7 @@ class TrayForgeHTTPHandler(http.server.BaseHTTPRequestHandler):
         assert self.reload_fn is not None
 
         def do_reload() -> str:
-            ok = self.reload_fn()
+            ok = self.reload_fn()  # ty:ignore[call-non-callable]
             if ok:
                 return "Config reloaded"
             return "Failed to reload config"
@@ -251,7 +251,7 @@ class QueueHandler(TrayForgeHTTPHandler):
             finally:
                 event.set()
 
-        self.action_queue.put(wrapper)
+        self.action_queue.put(wrapper)  # ty:ignore[unresolved-attribute]
         if not event.wait(timeout=5.0):
             raise RuntimeError("QueueHandler timed out waiting for main thread")
         result = result_queue.get()
@@ -269,7 +269,7 @@ def create_server(
 
     For headless mode, pass handler_cls=QueueHandler and root=None.
     """
-    handler_cls.pm = pm  # type: ignore[attr-defined]
-    handler_cls.root = root  # type: ignore[attr-defined]
-    handler_cls.reload_fn = reload_fn  # type: ignore[attr-defined]
+    handler_cls.pm = pm  # type: ignore[attr-defined]  # ty:ignore[unresolved-attribute]
+    handler_cls.root = root  # type: ignore[attr-defined]  # ty:ignore[unresolved-attribute]
+    handler_cls.reload_fn = reload_fn  # type: ignore[attr-defined]  # ty:ignore[unresolved-attribute]
     return http.server.HTTPServer(("127.0.0.1", 0), handler_cls)

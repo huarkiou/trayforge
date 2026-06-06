@@ -31,10 +31,10 @@ def main() -> None:
     is_first = load_config() is None
     config = get_default_config() if is_first else load_config()
     if is_first:
-        save_config(config)
+        save_config(config)  # ty:ignore[invalid-argument-type]
 
-    pm = ProcessManager(config)
-    tray = TrayUI(pm, window, config)
+    pm = ProcessManager(config)  # ty:ignore[invalid-argument-type]
+    tray = TrayUI(pm, window, config)  # ty:ignore[invalid-argument-type]
     window.set_processes(pm.process_names())
 
     app = AppController(config, pm, window, tray)

@@ -21,7 +21,7 @@ class ConfigDialog:
         self.dialog = tk.Toplevel(root)
         self.dialog.title("TrayForge - Settings")
         self._tk_icon = ImageTk.PhotoImage(get_app_icon())
-        self.dialog.iconphoto(True, self._tk_icon)  # type: ignore[arg-type]
+        self.dialog.iconphoto(True, self._tk_icon)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
         self.dialog.geometry("650x520")
         self.dialog.resizable(False, False)
         self.dialog.transient(root)
@@ -162,7 +162,7 @@ class ConfigDialog:
         ttk.Entry(frame, textvariable=v["cwd"], width=50).grid(
             row=1, column=1, sticky=tk.EW, padx=5
         )
-        ttk.Button(frame, text="...", width=3, command=lambda: self._browse_dir(v["cwd"])).grid(  # type: ignore[arg-type]
+        ttk.Button(frame, text="...", width=3, command=lambda: self._browse_dir(v["cwd"])).grid(  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
             row=1, column=2
         )
 
@@ -520,7 +520,7 @@ class ConfigDialog:
 
     def _on_close(self) -> None:
         if self._root_was_hidden:
-            self.dialog.master.withdraw()  # type: ignore[attr-defined]
+            self.dialog.master.withdraw()  # type: ignore[attr-defined]  # ty:ignore[unresolved-attribute]
         self.dialog.destroy()
 
     def _on_cancel(self) -> None:

@@ -24,7 +24,7 @@ class MainWindow:
         self.root = tk.Tk()
         self.root.title("TrayForge - Process Control")
         self._tk_icon = ImageTk.PhotoImage(get_app_icon())
-        self.root.iconphoto(True, self._tk_icon)  # type: ignore[arg-type]
+        self.root.iconphoto(True, self._tk_icon)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
 
         # Taskbar icon via .ico file
         if sys.platform == "win32":
