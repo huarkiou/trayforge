@@ -462,6 +462,12 @@ class ConfigDialog:
                     re.compile(webui)
                 except re.error as e:
                     return f"Invalid regex in WebUI Pattern for '{name}': {e}"
+            max_restarts_str = v["max_restarts"].get().strip()
+            if max_restarts_str:
+                try:
+                    int(max_restarts_str)
+                except ValueError:
+                    return f"Restart limit must be a number for '{name}'."
         return None
 
     def _on_save(self) -> None:
