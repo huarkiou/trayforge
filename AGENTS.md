@@ -27,6 +27,7 @@ Windows 托盘应用，通用进程管理（NapCat QQ、AstrBot、llama.cpp 等�
   - `--hidden-import` 对语法错误无效，必须修模块源码
   - 排查：`python -c "import X"` 确认语法正确；排除命名冲突（`find .venv -name 'X*'`）
 - 构建前断言所有源模块可导入：`python -c "import src_module_name"` 逐个验证
+- **uv 升级后 PyInstaller trampoline 报错**（`uv trampoline failed to canonicalize script path`）：旧 trampoline 与新 uv 版本不兼容，`uv sync --reinstall-package pyinstaller` 重新生成即可
 
 ## 多运行模式
 
