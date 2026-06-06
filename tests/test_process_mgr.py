@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 from process_mgr import ProcessManager
 
 
-def _make_config(processes=None):
+def _make_config(processes=None, max_restarts=0):
     if processes is None:
         processes = [
             {
@@ -16,6 +16,7 @@ def _make_config(processes=None):
                 "autostart": False,
                 "webui_pattern": None,
                 "delete_before_start": [],
+                "max_restarts": max_restarts,
             }
         ]
     return {
@@ -237,18 +238,38 @@ class TestCrashPolling:
         mock_proc.poll.return_value = 1
         mock_popen.return_value = mock_proc
 
-        cfg = _make_config()
+        cfg = _make_config(max_restarts=3)
         pm = ProcessManager(cfg)
         pm._start("TestProc")
 
-        from process_mgr import MAX_RESTARTS
-
-        pm._procs["TestProc"].restarts = MAX_RESTARTS
+        pm._procs["TestProc"].restarts = 3
         pm.poll_crashes()
 
         assert pm._procs["TestProc"].proc is None
         lines = pm.drain("TestProc")
         assert any("max restart attempts" in line.lower() for line in lines)
+
+    @patch("subprocess.Popen")
+    @patch("threading.Thread")
+    def test_max_restarts_zero_stops_no_restart(self, mock_thread, mock_popen):
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        mock_proc.poll.return_value = 1
+        mock_popen.return_value = mock_proc
+
+        cfg = _make_config(max_restarts=0)
+        pm = ProcessManager(cfg)
+        pm._start("TestProc")
+
+        pm.poll_crashes()
+
+        # Process should be cleared (treated as max reached)
+        assert pm._procs["TestProc"].proc is None
+        lines = pm.drain("TestProc")
+        # Should NOT contain "auto-restarting" since max_restarts=0
+        assert not any("auto-restarting" in line.lower() for line in lines)
+        # Should contain exit message
+        assert any("exited" in line.lower() for line in lines)
 
 
 class TestStatusListeners:
@@ -293,7 +314,7 @@ class TestGetStatus:
         assert status["has_webui"] is True
         assert status["webui_url"] is None
         assert status["restarts"] == 0
-        assert status["max_restarts"] == 3
+        assert status["max_restarts"] == 0
 
     @patch("threading.Thread")
     def test_get_status_reflects_running_state(self, mock_thread, pm):
@@ -314,4 +335,4 @@ class TestGetStatus:
         assert status["pid"] == 12345
         assert status["restarts"] == 0
         assert status["has_webui"] is True
-        assert status["max_restarts"] == 3
+        assert status["max_restarts"] == 0
