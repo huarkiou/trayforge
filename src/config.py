@@ -109,13 +109,18 @@ def _backup_config(config_path: str, logger) -> None:
     os.makedirs(backup_dir, exist_ok=True)
 
     now = datetime.now()
-    ts = now.strftime("%Y-%m-%d-%H%M%S") + f"-{now.microsecond // 1000:03d}"
-    backup_name = f"config.{ts}.json"
-    backup_path = os.path.join(backup_dir, backup_name)
+    ts_base = now.strftime("%Y-%m-%d-%H%M%S") + f"-{now.microsecond // 1000:03d}"
+    backup_path = os.path.join(backup_dir, f"config.{ts_base}.json")
+
+    # Avoid overwriting on timestamp collision (same ms)
+    counter = 1
+    while os.path.exists(backup_path):
+        counter += 1
+        backup_path = os.path.join(backup_dir, f"config.{ts_base}-{counter}.json")
 
     try:
         shutil.copy2(config_path, backup_path)
-        logger.info("Config backup: %s", backup_name)
+        logger.info("Config backup: %s", os.path.basename(backup_path))
     except IOError as e:
         logger.warning("Failed to create backup: %s", e)
         return
