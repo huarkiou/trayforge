@@ -2,6 +2,7 @@
 
 import sys
 import os
+import threading
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -14,8 +15,22 @@ from tray_ui import TrayUI
 from app_controller import AppController
 
 
+def _log_unhandled(exc_type, exc_value, exc_tb, thread_name="main"):
+    logger = get_main_logger()
+    logger.critical(
+        "Unhandled exception in %s thread",
+        thread_name,
+        exc_info=(exc_type, exc_value, exc_tb),
+    )
+
+
 def main() -> None:
     logger = get_main_logger()
+
+    sys.excepthook = lambda *a: _log_unhandled(*a)
+    threading.excepthook = lambda args: _log_unhandled(
+        args.exc_type, args.exc_value, args.exc_traceback, args.thread.name
+    )
 
     if not ensure_single_instance():
         import tkinter.messagebox
@@ -44,9 +59,11 @@ def main() -> None:
 if __name__ == "__main__":
     if "--headless" in sys.argv:
         from headless_controller import run_headless
+
         run_headless()
     elif len(sys.argv) > 1:
         from cli import main as cli_main
+
         sys.exit(cli_main())
     else:
         main()

@@ -115,6 +115,15 @@ class AppController:
     # --- Main loop ---
 
     def _tick(self) -> None:
+        try:
+            self._do_tick()
+        except Exception:
+            from logger import get_main_logger
+
+            get_main_logger().exception("_tick() error — event loop continues")
+        self._window.root.after(100, self._tick)
+
+    def _do_tick(self) -> None:
         # 1. Consume pending tray action
         action = self._tray.consume_action()
         if action:
@@ -145,9 +154,6 @@ class AppController:
         # 5. Exit check
         if self._tray._exit_requested:
             self._cleanup()
-            return
-
-        self._window.root.after(100, self._tick)
 
     # --- Lifecycle ---
 
