@@ -32,16 +32,17 @@ class MainWindow:
             save_ico(ico_path)
             self.root.iconbitmap(default=ico_path)
 
-        self.root.geometry("800x500")
+        self.root.geometry("960x600")
+        self.root.minsize(800, 500)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         # Center on screen
         self.root.update_idletasks()
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
-        x = (sw - 800) // 2
-        y = (sh - 500) // 2
-        self.root.geometry(f"800x500+{x}+{y}")
+        x = (sw - 960) // 2
+        y = (sh - 600) // 2
+        self.root.geometry(f"960x600+{x}+{y}")
 
         # Notebook (tabs) — dynamic, populated by set_processes()
         self.notebook = ttk.Notebook(self.root)
