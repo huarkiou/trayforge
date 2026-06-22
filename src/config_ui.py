@@ -81,7 +81,7 @@ class ConfigDialog:
         self.autostart_var = tk.BooleanVar()
         ttk.Checkbutton(
             global_frame,
-            text="Start TrayForge with Windows (autostart)",
+            text="Start TrayForge on login",
             variable=self.autostart_var,
         ).pack(anchor=tk.W, pady=2)
 
