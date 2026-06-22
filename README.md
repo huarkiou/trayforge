@@ -1,6 +1,6 @@
 # TrayForge
 
-Windows 系统托盘应用，通用进程管理器，一键管理 NapCat QQ、AstrBot、llama.cpp 等多个后台进程。
+跨平台系统托盘应用，通用进程管理器，一键管理 NapCat QQ、AstrBot、llama.cpp 等多个后台进程。
 
 [![Test](https://github.com/huarkiou/TrayForge/actions/workflows/test.yml/badge.svg)](https://github.com/huarkiou/TrayForge/actions/workflows/test.yml)
 
@@ -22,8 +22,9 @@ Windows 系统托盘应用，通用进程管理器，一键管理 NapCat QQ、As
 
 ## 系统要求
 
-- Windows 10+
-- Python 3.11+（开发）/ 直接运行 `TrayForge.exe`（发布版）
+- Windows 10+ 或 Linux（X11/Wayland）
+- Python 3.11+（开发）/ 直接运行打包二进制（发布版）
+- Linux GUI 模式需 `libayatana-appindicator`（各发行版包名见下文）
 
 ## 快速开始
 
@@ -32,15 +33,26 @@ Windows 系统托盘应用，通用进程管理器，一键管理 NapCat QQ、As
 ```bash
 git clone <repo>
 cd TrayForge
+
+# Linux 额外依赖（GUI 托盘）
+# Arch:       sudo pacman -S libayatana-appindicator
+# Debian:     sudo apt install gir1.2-ayatanaappindicator3-0.1
+# Fedora:     sudo dnf install libayatana-appindicator
+
+uv sync
 uv run python src/main.pyw
 ```
-
 
 ### 打包
 
 ```bash
+# Windows
 build.bat
 # 输出：dist/TrayForge.exe
+
+# Linux
+bash build.sh
+# 输出：dist/TrayForge
 ```
 
 ## 项目结构
@@ -71,13 +83,14 @@ TrayForge/
 ├── tests/                  # 测试（134 tests）
 ├── docs/                   # 设计文档
 ├── pyproject.toml
-├── build.bat
+├── build.bat               # Windows 打包脚本
+├── build.sh                # Linux 打包脚本
 └── README.md
 ```
 
 ## 使用说明
 
-1. 双击 `TrayForge.exe`，托盘出现红色图标
+1. 启动 TrayForge，托盘出现红色图标
 2. 首次运行弹出设置，确认 NapCat 和 AstrBot 路径后保存
 3. 右键托盘 → **NapCat** / **AstrBot** 切换启停
 4. 进程运行后，子菜单显示其 WebUI URL → 一键打开浏览器
@@ -92,14 +105,20 @@ TrayForge/
 同一个 `TrayForge.exe` 支持命令行模式（需先启动 GUI 实例）：
 
 ```bash
+# Windows
 TrayForge.exe list              # 列出所有进程及状态
-TrayForge.exe status NapCat     # 查看 NapCat 详细状态（PID、WebUI、重启次数）
+TrayForge.exe status NapCat     # 查看 NapCat 详细状态
 TrayForge.exe start NapCat      # 启动 NapCat
 TrayForge.exe stop NapCat       # 停止 NapCat
 TrayForge.exe restart NapCat    # 重启 NapCat
 TrayForge.exe webui NapCat      # 打印 NapCat WebUI URL
 TrayForge.exe reload            # 通知 GUI 从磁盘重载配置
 TrayForge.exe --help            # 查看帮助
+
+# Linux
+./TrayForge list
+./TrayForge status NapCat
+# ... 同上
 ```
 
 CLI 通过本地 HTTP (`127.0.0.1:<port>`) 与实例通信，无需额外配置。
@@ -109,8 +128,13 @@ CLI 通过本地 HTTP (`127.0.0.1:<port>`) 与实例通信，无需额外配置�
 无需桌面环境，纯后台运行 ProcessManager + HTTP 服务：
 
 ```bash
+# Windows
 TrayForge.exe --headless    # 启动后台服务
 TrayForge.exe list           # 另一个终端查看状态
+
+# Linux
+./TrayForge --headless
+./TrayForge list
 # Ctrl+C 退出
 ```
 
@@ -118,11 +142,13 @@ TrayForge.exe list           # 另一个终端查看状态
 
 | 变量 | 说明 |
 |---|---|
-| `TRAYFORGE_DATA_DIR` | 覆盖数据目录（默认 `%LOCALAPPDATA%\TrayForge`），设置后 `config.json`、日志等均写入新目录 |
+| `TRAYFORGE_DATA_DIR` | 覆盖数据目录。Windows 默认 `%LOCALAPPDATA%\TrayForge`，Linux 默认 `~/.local/share/TrayForge` |
 
 ## 配置
 
-配置文件位于 `%LOCALAPPDATA%\TrayForge\config.json`：
+配置文件位置：
+- Windows: `%LOCALAPPDATA%\TrayForge\config.json`
+- Linux: `~/.local/share/TrayForge/config.json`
 
 ```json
 {
@@ -175,6 +201,7 @@ TrayForge.exe list           # 另一个终端查看状态
 
 ## 日志
 
-日志位于 `%LOCALAPPDATA%\TrayForge\logs\`：
+- Windows: `%LOCALAPPDATA%\TrayForge\logs\`
+- Linux: `~/.local/state/TrayForge/logs/`
 - `trayforge.log` — 应用操作日志
 - `<进程名>.log` — 每进程独立日志（如 `NapCat.log`、`AstrBot.log`、`Llama.log`）
