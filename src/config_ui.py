@@ -23,7 +23,7 @@ class ConfigDialog:
         self._tk_icon = ImageTk.PhotoImage(get_app_icon())
         self.dialog.iconphoto(True, self._tk_icon)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
         self.dialog.geometry("650x520")
-        self.dialog.resizable(False, False)
+        self.dialog.minsize(580, 400)
         self.dialog.transient(root)
 
         # Center relative to parent
