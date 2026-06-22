@@ -22,8 +22,8 @@ class ConfigDialog:
         self.dialog.title("TrayForge - Settings")
         self._tk_icon = ImageTk.PhotoImage(get_app_icon())
         self.dialog.iconphoto(True, self._tk_icon)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
-        self.dialog.geometry("820x760")
-        self.dialog.minsize(780, 720)
+        self.dialog.geometry("820x660")
+        self.dialog.minsize(780, 620)
         self.dialog.transient(root)
 
         # Center relative to parent
@@ -33,8 +33,8 @@ class ConfigDialog:
         pw = root.winfo_width()
         ph = root.winfo_height()
         dx = px + (pw - 820) // 2
-        dy = py + (ph - 760) // 2
-        self.dialog.geometry(f"820x760+{max(0, dx)}+{max(0, dy)}")
+        dy = py + (ph - 660) // 2
+        self.dialog.geometry(f"820x660+{max(0, dx)}+{max(0, dy)}")
 
         root_was_hidden = not root.winfo_viewable()
         if root_was_hidden:
