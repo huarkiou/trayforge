@@ -2,9 +2,11 @@
 
 import sys
 from unittest.mock import patch, MagicMock
+import pytest
 import startup
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows registry")
 class TestGetExePath:
     def test_frozen_returns_executable(self):
         with patch.object(sys, "executable", "C:/Apps/TrayForge.exe"):
@@ -20,6 +22,7 @@ class TestGetExePath:
                 assert "main.pyw" in result
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows registry")
 class TestIsAutostartEnabled:
     def test_enabled_when_key_exists(self):
         mock_key = MagicMock()
@@ -40,6 +43,7 @@ class TestIsAutostartEnabled:
             assert startup.is_autostart_enabled() is False
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows registry")
 class TestEnableAutostart:
     def test_sets_value(self, monkeypatch):
         monkeypatch.setattr(startup, "_get_exe_path", lambda: "C:/Apps/TrayForge.exe")
@@ -56,6 +60,7 @@ class TestEnableAutostart:
             assert startup.enable_autostart() is False
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows registry")
 class TestDisableAutostart:
     def test_deletes_value(self):
         mock_key = MagicMock()
