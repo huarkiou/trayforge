@@ -33,9 +33,13 @@ def main() -> None:
     )
 
     if not ensure_single_instance():
-        import tkinter.messagebox
+        logger.warning("TrayForge is already running, exiting")
+        try:
+            import tkinter.messagebox
 
-        tkinter.messagebox.showwarning("TrayForge", "TrayForge is already running.")
+            tkinter.messagebox.showwarning("TrayForge", "TrayForge is already running.")
+        except Exception:
+            pass
         return
 
     logger.info("=" * 40)
