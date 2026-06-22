@@ -14,6 +14,7 @@ def _make_config(processes=None, max_restarts=0):
                 "encoding": "utf-8",
                 "singleton": False,
                 "autostart": False,
+                "cleanup_cwd": False,
                 "webui_pattern": None,
                 "delete_before_start": [],
                 "max_restarts": max_restarts,
@@ -46,6 +47,7 @@ class TestBuildFromConfig:
                     "encoding": "utf-8",
                     "singleton": False,
                     "autostart": False,
+                    "cleanup_cwd": False,
                     "webui_pattern": None,
                     "delete_before_start": [],
                 }
@@ -68,6 +70,7 @@ class TestBuildFromConfig:
                     "encoding": "utf-8",
                     "singleton": False,
                     "autostart": False,
+                    "cleanup_cwd": False,
                     "webui_pattern": None,
                     "delete_before_start": [],
                 }
@@ -101,6 +104,7 @@ class TestProcessState:
                     "encoding": "utf-8",
                     "singleton": False,
                     "autostart": False,
+                    "cleanup_cwd": False,
                     "webui_pattern": "http://\\S+",
                     "delete_before_start": [],
                 }
@@ -143,6 +147,7 @@ class TestStartStop:
                     "encoding": "utf-8",
                     "singleton": False,
                     "autostart": False,
+                    "cleanup_cwd": False,
                     "webui_pattern": None,
                     "delete_before_start": [],
                 }
@@ -165,6 +170,7 @@ class TestStartStop:
                     "encoding": "utf-8",
                     "singleton": False,
                     "autostart": False,
+                    "cleanup_cwd": False,
                     "webui_pattern": None,
                     "delete_before_start": [],
                 }
@@ -202,6 +208,7 @@ class TestStartStop:
                     "encoding": "utf-8",
                     "singleton": False,
                     "autostart": False,
+                    "cleanup_cwd": False,
                     "webui_pattern": None,
                     "delete_before_start": [],
                 },
@@ -212,6 +219,7 @@ class TestStartStop:
                     "encoding": "utf-8",
                     "singleton": False,
                     "autostart": False,
+                    "cleanup_cwd": False,
                     "webui_pattern": None,
                     "delete_before_start": [],
                 },

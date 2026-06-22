@@ -25,6 +25,7 @@ def pm():
                 "cleanup_cwd": False,
                 "webui_pattern": "\\[WebUi\\] WebUi User Panel Url: (https?:\\/\\/\\S+)",
                 "delete_before_start": [],
+                "max_restarts": 0,
             },
             {
                 "name": "AstrBot",
@@ -36,6 +37,7 @@ def pm():
                 "cleanup_cwd": False,
                 "webui_pattern": None,
                 "delete_before_start": [],
+                "max_restarts": 0,
             },
         ],
         "output_refresh_ms": 500,
