@@ -1,8 +1,9 @@
-"""Configuration management - reads/writes config.json in %LOCALAPPDATA%\\TrayForge\\"""
+"""Configuration management - reads/writes config.json in %LOCALAPPDATA%\\TrayForge\\ (or XDG on Linux)."""
 
 import json
 import os
 import shutil
+import sys
 from datetime import datetime
 from logger import get_main_logger
 from trayforge_types import AppConfig
@@ -16,8 +17,14 @@ def get_data_dir() -> str:
     if custom:
         os.makedirs(custom, exist_ok=True)
         return custom
-    local_appdata = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
-    data_dir = os.path.join(local_appdata, "TrayForge")
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+    else:
+        base = os.environ.get(
+            "XDG_DATA_HOME",
+            os.path.join(os.path.expanduser("~"), ".local", "share"),
+        )
+    data_dir = os.path.join(base, "TrayForge")
     os.makedirs(data_dir, exist_ok=True)
     return data_dir
 

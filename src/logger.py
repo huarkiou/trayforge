@@ -1,15 +1,22 @@
-"""Logging module for TrayForge - writes to %%LOCALAPPDATA%%\\TrayForge\\logs\\"""
+"""Logging module for TrayForge - writes to LOCALAPPDATA\\TrayForge\\logs (or XDG on Linux)."""
 
 import logging
 import os
 import re
+import sys
 from logging.handlers import RotatingFileHandler
 
 
 def _get_log_dir() -> str:
-    """Get or create the log directory under LOCALAPPDATA."""
-    local_appdata = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
-    log_dir = os.path.join(local_appdata, "TrayForge", "logs")
+    """Get or create the log directory."""
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+    else:
+        base = os.environ.get(
+            "XDG_STATE_HOME",
+            os.path.join(os.path.expanduser("~"), ".local", "state"),
+        )
+    log_dir = os.path.join(base, "TrayForge", "logs")
     os.makedirs(log_dir, exist_ok=True)
     return log_dir
 
