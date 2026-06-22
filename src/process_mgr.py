@@ -12,6 +12,7 @@ import shlex
 import os
 import re
 import time
+import signal
 from datetime import datetime
 from typing import TYPE_CHECKING
 import psutil
@@ -238,14 +239,16 @@ class ProcessManager:
                             == os.path.normcase(norm_cwd)
                         ):
                             continue
-                    elif not (p_cwd and os.path.normpath(p_cwd) == norm_cwd):
-                        continue
-                    subprocess.run(
-                        ["taskkill", "/f", "/t", "/pid", str(proc.info["pid"])],
-                        capture_output=True,
-                        timeout=5,
-                        creationflags=subprocess.CREATE_NO_WINDOW,
-                    )
+                        subprocess.run(
+                            ["taskkill", "/f", "/t", "/pid", str(proc.info["pid"])],
+                            capture_output=True,
+                            timeout=5,
+                            creationflags=subprocess.CREATE_NO_WINDOW,
+                        )
+                    else:
+                        if not (p_cwd and os.path.normpath(p_cwd) == norm_cwd):
+                            continue
+                        os.kill(proc.info["pid"], signal.SIGKILL)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
                 except Exception:
@@ -276,7 +279,7 @@ class ProcessManager:
 
         # Cleanup cwd: kill all processes matching cwd (for processes that leave zombies)
         cleanup = cfg.get("cleanup_cwd", False)
-        if cleanup and sys.platform == "win32":
+        if cleanup:
             self._kill_cwd_processes(cwd)
 
         # Delete files before start
@@ -294,9 +297,8 @@ class ProcessManager:
                 try:
                     os.remove(file_path)
                 except PermissionError:
-                    if sys.platform == "win32":
-                        self._kill_cwd_processes(cwd)
-                        time.sleep(0.3)
+                    self._kill_cwd_processes(cwd)
+                    time.sleep(0.3)
                     try:
                         os.remove(file_path)
                     except OSError as e:
@@ -345,6 +347,8 @@ class ProcessManager:
             }
             if sys.platform == "win32":
                 kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            if sys.platform != "win32":
+                kwargs["start_new_session"] = True
             proc = subprocess.Popen(args, **kwargs)
             ps.proc = proc
             if _reset_counter:
@@ -387,13 +391,22 @@ class ProcessManager:
             )
         else:
             try:
-                ps.proc.terminate()
-                ps.proc.wait(timeout=2)
-            except Exception:
-                try:
-                    ps.proc.kill()
-                except Exception:
-                    pass
+                if os.getpgid(pid) == pid:
+                    os.killpg(pid, signal.SIGTERM)
+                    try:
+                        ps.proc.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        os.killpg(pid, signal.SIGKILL)
+                        ps.proc.wait(timeout=2)
+                else:
+                    ps.proc.terminate()
+                    try:
+                        ps.proc.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        ps.proc.kill()
+                        ps.proc.wait(timeout=2)
+            except ProcessLookupError:
+                pass
         ps.proc = None
         ps.webui_url = None
         self._system_msg(name, f"{name} stopped")
