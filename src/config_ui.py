@@ -217,26 +217,36 @@ class ConfigDialog:
         ).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Label(check_frame, text="(0=no restart)", foreground="gray").pack(side=tk.LEFT)
 
-        # Row 5: WebUI Pattern
-        ttk.Label(frame, text="WebUI Pattern:").grid(row=5, column=0, sticky=tk.W, pady=1)
-        v["webui_pattern"] = tk.StringVar(value=defaults["webui_pattern"])
-        ttk.Entry(frame, textvariable=v["webui_pattern"], width=50).grid(
+        # Row 5: Environment variables
+        ttk.Label(frame, text="Env vars:").grid(row=5, column=0, sticky=tk.W, pady=1)
+        v["env"] = tk.StringVar(value=defaults.get("env", ""))
+        ttk.Entry(frame, textvariable=v["env"], width=50).grid(
             row=5, column=1, columnspan=2, sticky=tk.EW, padx=5
         )
+        ttk.Label(frame, text="(KEY1=VAL1, KEY2=VAL2)", foreground="gray").grid(
+            row=6, column=1, columnspan=2, sticky=tk.W, padx=5
+        )
 
-        # Row 6: Delete before start
-        ttk.Label(frame, text="Delete files:").grid(row=6, column=0, sticky=tk.W, pady=1)
+        # Row 7: WebUI Pattern
+        ttk.Label(frame, text="WebUI Pattern:").grid(row=7, column=0, sticky=tk.W, pady=1)
+        v["webui_pattern"] = tk.StringVar(value=defaults["webui_pattern"])
+        ttk.Entry(frame, textvariable=v["webui_pattern"], width=50).grid(
+            row=7, column=1, columnspan=2, sticky=tk.EW, padx=5
+        )
+
+        # Row 8: Delete before start
+        ttk.Label(frame, text="Delete files:").grid(row=8, column=0, sticky=tk.W, pady=1)
         v["delete_before_start"] = tk.StringVar(value=defaults["delete_before_start"])
         ttk.Entry(frame, textvariable=v["delete_before_start"], width=50).grid(
-            row=6, column=1, columnspan=2, sticky=tk.EW, padx=5
+            row=8, column=1, columnspan=2, sticky=tk.EW, padx=5
         )
         ttk.Label(frame, text="(comma-separated, relative to CWD)", foreground="gray").grid(
-            row=7, column=1, columnspan=2, sticky=tk.W, padx=5
+            row=9, column=1, columnspan=2, sticky=tk.W, padx=5
         )
 
-        # Row 8: Action buttons (Copy, ▲, ▼, Delete)
+        # Row 10: Action buttons (Copy, ▲, ▼, Delete)
         btn_frame = ttk.Frame(frame)
-        btn_frame.grid(row=8, column=0, columnspan=3, sticky=tk.E, pady=(5, 0))
+        btn_frame.grid(row=10, column=0, columnspan=3, sticky=tk.E, pady=(5, 0))
         ttk.Button(btn_frame, text="▲", width=3, command=lambda f=frame: self._move_up(f)).pack(  # type: ignore[misc]
             side=tk.LEFT, padx=(0, 2)
         )
@@ -286,6 +296,7 @@ class ConfigDialog:
                 "webui_pattern": "",
                 "delete_before_start": "",
                 "max_restarts": "0",
+                "env": "",
             }
 
         frame = ttk.LabelFrame(
@@ -321,6 +332,7 @@ class ConfigDialog:
             "webui_pattern": v["webui_pattern"].get(),
             "delete_before_start": v["delete_before_start"].get(),
             "max_restarts": v["max_restarts"].get(),
+            "env": v["env"].get(),
         }
         self._insert_process(idx + 1, defaults)
 
@@ -433,6 +445,7 @@ class ConfigDialog:
                     "webui_pattern": proc.get("webui_pattern") or "",
                     "delete_before_start": ", ".join(proc.get("delete_before_start", [])),
                     "max_restarts": str(proc.get("max_restarts", 0)),
+                    "env": ", ".join(f"{k}={v}" for k, v in proc.get("env", {}).items()),
                 }
             )
 
@@ -485,6 +498,12 @@ class ConfigDialog:
             delete_files = [
                 f.strip() for f in v["delete_before_start"].get().split(",") if f.strip()
             ]
+            env_pairs = [p.strip() for p in v["env"].get().split(",") if p.strip()]
+            env_dict: dict[str, str] = {}
+            for pair in env_pairs:
+                if "=" in pair:
+                    k, val = pair.split("=", 1)
+                    env_dict[k.strip()] = val.strip()
             processes.append(
                 {
                     "name": v["name"].get().strip(),
@@ -497,6 +516,7 @@ class ConfigDialog:
                     "webui_pattern": v["webui_pattern"].get().strip() or None,
                     "delete_before_start": delete_files,
                     "max_restarts": int(v["max_restarts"].get() or 0),
+                    "env": env_dict,
                 }
             )
 

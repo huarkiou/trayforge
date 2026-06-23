@@ -248,7 +248,12 @@ class ProcessManager:
                     else:
                         if not (p_cwd and os.path.normpath(p_cwd) == norm_cwd):
                             continue
-                        os.kill(proc.info["pid"], signal.SIGKILL)
+                        pid = proc.info["pid"]
+                        try:
+                            pgid = os.getpgid(pid)
+                            os.killpg(pgid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
                 except Exception:
@@ -335,6 +340,8 @@ class ProcessManager:
         try:
             env = os.environ.copy()
             env["PYTHONIOENCODING"] = "utf-8"
+            for k, v in cfg.get("env", {}).items():
+                env[k] = v
             kwargs: dict = {
                 "cwd": cwd or None,
                 "stdout": subprocess.PIPE,

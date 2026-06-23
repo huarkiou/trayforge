@@ -49,6 +49,7 @@ def _add_entry(dlg, name="TestProc", cmd="echo hello"):
             "cleanup_cwd": False,
             "webui_pattern": "",
             "delete_before_start": "",
+            "env": "",
         }
     )
     return dlg._proc_entries[-1]["frame"]
@@ -117,6 +118,7 @@ class TestValidate:
                 "cleanup_cwd": False,
                 "webui_pattern": "[invalid",
                 "delete_before_start": "",
+                "env": "",
             }
         )
         assert "Invalid regex" in dlg._validate()
@@ -146,6 +148,7 @@ class TestOnSave:
                         "cleanup_cwd": True,
                         "webui_pattern": "url: (https?://\\S+)",
                         "delete_before_start": "a.lock, b.lock",
+                        "env": "KEY1=val1, KEY2=val2",
                     }
                 )
                 dlg.output_refresh_var.set("300")
@@ -161,6 +164,7 @@ class TestOnSave:
                 assert proc["singleton"] is True
                 assert proc["webui_pattern"] == "url: (https?://\\S+)"
                 assert proc["delete_before_start"] == ["a.lock", "b.lock"]
+                assert proc.get("env") == {"KEY1": "val1", "KEY2": "val2"}
 
     def test_empty_delete_files_handled(self, dlg):
         with patch.object(config_ui, "save_config", return_value=True):
@@ -261,6 +265,7 @@ class TestBuildProcessRow:
             "webui_pattern": "",
             "delete_before_start": "",
             "max_restarts": 0,
+            "env": "",
         }
         v = dlg._build_process_row(frame, defaults)
         expected_keys = {
@@ -274,6 +279,7 @@ class TestBuildProcessRow:
             "webui_pattern",
             "delete_before_start",
             "max_restarts",
+            "env",
         }
         assert set(v.keys()) == expected_keys
 
@@ -290,6 +296,7 @@ class TestBuildProcessRow:
             "webui_pattern": "http://x",
             "delete_before_start": "a.lock",
             "max_restarts": 0,
+            "env": "FOO=bar",
         }
         v = dlg._build_process_row(frame, defaults)
         assert v["name"].get() == "MyProc"
@@ -302,3 +309,4 @@ class TestBuildProcessRow:
         assert v["webui_pattern"].get() == "http://x"
         assert v["delete_before_start"].get() == "a.lock"
         assert v["max_restarts"].get() == "0"
+        assert v["env"].get() == "FOO=bar"

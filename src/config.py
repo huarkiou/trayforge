@@ -48,6 +48,7 @@ def get_default_config() -> AppConfig:
                 "webui_pattern": "\\[WebUi\\] WebUi User Panel Url: (https?:\\/\\/\\S+)",
                 "delete_before_start": [],
                 "max_restarts": 0,
+                "env": {},
             },
             {
                 "name": "AstrBot",
@@ -60,6 +61,7 @@ def get_default_config() -> AppConfig:
                 "webui_pattern": "Starting WebUI at (https?:\\/\\/\\S+)",
                 "delete_before_start": ["astrbot.lock"],
                 "max_restarts": 0,
+                "env": {},
             },
         ],
         "output_refresh_ms": 500,

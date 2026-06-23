@@ -1,0 +1,30 @@
+# Maintainer: <your-email>
+# Build + install:  bash install.sh
+# Uninstall:         bash install.sh -r  (or  sudo pacman -R trayforge)
+
+pkgname=trayforge
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Cross-platform system tray process manager for NapCat QQ, AstrBot, llama.cpp"
+arch=('x86_64')
+url="https://github.com/huarkiou/TrayForge"
+license=('MIT')
+options=(!debug)
+install=trayforge.install
+depends=('libayatana-appindicator')
+
+package() {
+  install -Dm755 "$startdir"/dist/TrayForge "$pkgdir/usr/bin/trayforge"
+  install -Dm644 "$startdir"/assets/trayforge.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/trayforge.png"
+
+  install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/trayforge.desktop" << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=TrayForge
+Comment=System tray process manager
+Exec=trayforge
+Icon=trayforge
+Terminal=false
+Categories=Utility;
+EOF
+}

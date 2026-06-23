@@ -5,14 +5,16 @@ Windows 托盘应用，通用进程管理（NapCat QQ、AstrBot、llama.cpp 等�
 ## 进程管理
 
 - ProcessManager 通用化：`_procs: dict[str, _ProcState]` 按名索引，不再硬编码 per-process 属性对
-- 配置驱动：`processes[]` 数组，每个进程独立配置 name/cwd/cmd/encoding/singleton/autostart/webui_pattern/delete_before_start
+- 配置驱动：`processes[]` 数组，每个进程独立配置 name/cwd/cmd/encoding/singleton/autostart/webui_pattern/delete_before_start/env/max_restarts
 - `shlex.split(cmd, posix=False)` 必须在 Windows 使用，否则反斜杠路径被当 POSIX 转义符吃掉
 - `Popen(cwd=...)` 不参与 exe 搜索，裸文件名需拼绝对路径或用 `.\` 前缀；含 `..` 的相对路径（如 `..\python_embeded\python.exe`）会在 cwd 下解析
+- `env: dict[str,str]` → 注入自定义环境变量（如 NapCat 的 `ACCOUNT` + `NAPCAT_QUICK_PASSWORD_MD5`），与父进程 env 合并
 - 子进程设 `PYTHONIOENCODING=utf-8`，否则中文 Windows (cp936) 下 emoji 崩溃
 - **杀进程：`taskkill /f /t /pid <pid>`**，唯一可靠方式，0.3s 清全树。`WM_CLOSE` / `terminate()` 均无效
+- Linux 杀进程：`os.killpg(pgid, SIGKILL)` 杀整个进程组；`_kill_cwd_processes()` 对找到的进程取 `os.getpgid(pid)` 后 `killpg`，不判断是否为 leader
 - **`taskkill /f /t /im <名>` 杀全系统同名进程**，不要对 `QQ.exe` 等通用名使用，改为 `/pid` 精确杀或依赖父进程 `/t` 级联
 - `singleton: true` → 防同进程名重复启动（`is_running` 检查）
-- `cleanup_cwd: true` → 启动前杀同工作目录的所有残留进程（psutil + taskkill），用于清理僵尸进程（NapCat/AstrBot 等）
+- `cleanup_cwd: true` → 启动前杀同工作目录的所有残留进程（psutil + killpg/taskkill），用于清理僵尸进程（NapCat/AstrBot 等）
 - `singleton` 和 `cleanup_cwd` 独立控制，同 cwd 下多进程（如 llama-server 不同端口）设 `cleanup_cwd: false` 避免互杀
 - `delete_before_start` → 启动前删文件，被占用时按 cwd 杀占文件进程后重试
 - reader 线程只读 pipe + 写 queue，**绝不碰 Popen 对象**；主线程独占 Popen 操作
@@ -114,3 +116,7 @@ Windows 托盘应用，通用进程管理（NapCat QQ、AstrBot、llama.cpp 等�
 - **UAC + `-WindowStyle Hidden`**：隐藏窗口导致 UAC 提权对话框也无法显示在安全桌面上，进程永不会启动
   - 如果程序内部自提权用 `Start-Process -Verb RunAs`，不要加 `-WindowStyle Hidden`
 - 类型检查：`ty`（快速）和 `mypy`（严格），`callable` 直接用做类型注解在 Python 3.11+ 会报错，应改用 `typing.Callable`（项目预存问题）
+
+## 已知问题
+
+（当前无已知问题）

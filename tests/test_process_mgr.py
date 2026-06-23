@@ -18,6 +18,7 @@ def _make_config(processes=None, max_restarts=0):
                 "webui_pattern": None,
                 "delete_before_start": [],
                 "max_restarts": max_restarts,
+                "env": {},
             }
         ]
     return {

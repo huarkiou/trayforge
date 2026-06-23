@@ -80,6 +80,8 @@ def _write_test_config():
                 "cleanup_cwd": False,
                 "webui_pattern": None,
                 "delete_before_start": [],
+                "max_restarts": 0,
+                "env": {},
             },
         ],
         "output_refresh_ms": 500,

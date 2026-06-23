@@ -14,6 +14,7 @@ class ProcessConfig(TypedDict):
     webui_pattern: str | None
     delete_before_start: list[str]
     max_restarts: int
+    env: dict[str, str]
 
 
 class AppConfig(TypedDict):

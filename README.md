@@ -162,7 +162,9 @@ TrayForge.exe list           # 另一个终端查看状态
       "autostart": false,
       "cleanup_cwd": true,
       "webui_pattern": "\\[WebUi\\] WebUi User Panel Url: (https?://\\S+)",
-      "delete_before_start": []
+      "delete_before_start": [],
+      "max_restarts": 0,
+      "env": {}
     },
     {
       "name": "AstrBot",
@@ -173,7 +175,9 @@ TrayForge.exe list           # 另一个终端查看状态
       "autostart": false,
       "cleanup_cwd": true,
       "webui_pattern": "Starting WebUI at (https?://\\S+)",
-      "delete_before_start": ["astrbot.lock"]
+      "delete_before_start": ["astrbot.lock"],
+      "max_restarts": 0,
+      "env": {}
     }
   ],
   "output_refresh_ms": 500,
@@ -197,6 +201,8 @@ TrayForge.exe list           # 另一个终端查看状态
 | `autostart` | 随 TrayForge 启动自动拉起 |
 | `cleanup_cwd` | 启动前杀同工作目录的残留进程，用于清理僵尸进程 |
 | `webui_pattern` | 正则，捕获组提取 WebUI URL；留空则无 WebUI 菜单 |
+| `env` | 自定义环境变量字典 KEY=VALUE（如 `{"ACCOUNT": "123", "PASSWORD_MD5": "xxx"}`），与父进程 env 合并 |
+| `max_restarts` | 崩溃自动重启最大次数（0=不自动重启） |
 | `delete_before_start` | 启动前删除的文件列表（相对 cwd），被占用时杀占用进程 |
 
 ## 日志
