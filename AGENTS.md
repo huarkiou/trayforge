@@ -46,7 +46,7 @@ Windows 托盘应用，通用进程管理（NapCat QQ、AstrBot、llama.cpp 等�
 - `mainloop()` 必须在主线程，`icon.run()` 独立 daemon 线程，跨线程用 `root.after()` 投递
 - `root.destroy()` 不可在 `after()` 回调调用；用 `root.quit()` 退出 mainloop 后再 destroy
 - `withdraw()` 后 Toplevel 无法映射 → 用 `alpha=0` 透明化代替 withdraw
-- 字体：中文 Windows 用 `Microsoft YaHei`，不支持 CSS fallback
+- 字体：中文 Windows 用 `Microsoft YaHei`，不支持 CSS fallback。Linux tkinter 自动 fallback 系统默认字体，不影响运行
 
 ## 崩溃恢复
 
@@ -116,6 +116,21 @@ Windows 托盘应用，通用进程管理（NapCat QQ、AstrBot、llama.cpp 等�
 - **UAC + `-WindowStyle Hidden`**：隐藏窗口导致 UAC 提权对话框也无法显示在安全桌面上，进程永不会启动
   - 如果程序内部自提权用 `Start-Process -Verb RunAs`，不要加 `-WindowStyle Hidden`
 - 类型检查：`ty`（快速）和 `mypy`（严格），`callable` 直接用做类型注解在 Python 3.11+ 会报错，应改用 `typing.Callable`（项目预存问题）
+
+## 跨平台
+
+- 所有平台相关代码用 `if sys.platform == "win32"` 守卫，else 分支覆盖 Linux
+- `single_instance.py`：Windows 命名 Mutex / Linux fcntl 文件锁
+- `startup.py`：Windows 注册表 / Linux XDG autostart .desktop
+- 杀进程：Windows `taskkill /f /t` / Linux `os.killpg`
+- 字体：`Microsoft YaHei` / `Consolas` 硬编码，Linux 自动 fallback 系统默认字体
+
+## Arch Linux 打包
+
+- `packaging/arch/PKGBUILD`：本地构建用，`BUILDDIR=/tmp` 避免和项目 `src/` 冲突
+- `packaging/aur/PKGBUILD`：AUR 用（`trayforge-bin`），从 GitHub Release 下载预构建二进制
+- `install.sh`：一键 `build.sh + makepkg -si`，自动设 `BUILDDIR` 和 `PKGDEST`
+- CI release workflow：Windows + Linux 并行构建 → 合并上传 Release → AUR 自动更新
 
 ## 已知问题
 

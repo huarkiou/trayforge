@@ -55,14 +55,18 @@ bash build.sh
 # 输出：dist/TrayForge
 ```
 
-### Arch Linux 系统安装
+### Arch Linux
 
 ```bash
-bash install.sh        # 构建 + pacman 安装（含 .desktop 图标）
-bash install.sh -r     # pacman 卸载
+# 从 AUR 安装
+paru -S trayforge-bin      # 或 yay -S trayforge-bin
+
+# 或本地构建安装
+bash install.sh             # 构建 + pacman 安装
+bash install.sh -r          # 卸载
 ```
 
-依赖 `libayatana-appindicator`，pacman 自动处理。
+AUR 包会自动从 GitHub Release 下载预构建二进制，安装后通过 `trayforge` 命令启动。
 
 ## 项目结构
 
@@ -70,7 +74,7 @@ bash install.sh -r     # pacman 卸载
 TrayForge/
 ├── .github/workflows/      # CI/CD
 │   ├── test.yml            # 测试 + ruff 格式/lint 检查
-│   └── release.yml         # 手动发布 exe
+│   └── release.yml         # 发布 (Windows + Linux 构建, AUR)
 ├── src/                    # 源码
 │   ├── main.pyw            # 入口（无参=GUI，有参=CLI，--headless=后台）
 │   ├── app_controller.py   # 应用控制器（GUI 事件循环、action 分发）
