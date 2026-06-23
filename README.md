@@ -55,6 +55,15 @@ bash build.sh
 # 输出：dist/TrayForge
 ```
 
+### Arch Linux 系统安装
+
+```bash
+bash install.sh        # 构建 + pacman 安装（含 .desktop 图标）
+bash install.sh -r     # pacman 卸载
+```
+
+依赖 `libayatana-appindicator`，pacman 自动处理。
+
 ## 项目结构
 
 ```
@@ -79,8 +88,16 @@ TrayForge/
 │   ├── single_instance.py  # 单实例保护
 │   └── trayforge_types.py  # 类型定义（ProcessConfig, AppConfig, ProcessStatus）
 ├── assets/                 # 静态资源
-│   └── icon.ico
-├── tests/                  # 测试（134 tests）
+│   ├── icon.ico
+│   └── trayforge.png
+├── tests/                  # 测试（125 tests）
+├── packaging/arch/         # Arch Linux pacman 打包
+│   ├── PKGBUILD
+│   └── trayforge.install
+├── build.sh                # Linux 构建
+├── build.bat               # Windows 构建
+├── install.sh              # Arch Linux 一键安装/卸载
+└── README.md
 ├── docs/                   # 设计文档
 ├── pyproject.toml
 ├── build.bat               # Windows 打包脚本
