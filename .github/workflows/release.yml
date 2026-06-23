@@ -4,12 +4,24 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version number (e.g. 0.1.0)"
+        description: "Version tag (e.g. v0.7.0)"
         required: true
         type: string
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate version format
+        run: |
+          V="${{ inputs.version }}"
+          if [[ ! "$V" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: version must be vX.Y.Z (e.g. v0.7.0), got: $V"
+            exit 1
+          fi
+
   changelog:
+    needs: validate
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.gen.outputs.tag }}
@@ -19,7 +31,7 @@ jobs:
           fetch-depth: 0
       - id: gen
         run: |
-          TAG="v${{ inputs.version }}"
+          TAG="${{ inputs.version }}"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
           echo "## Changes in $TAG" > CHANGELOG.md
