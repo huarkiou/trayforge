@@ -3,7 +3,8 @@
 # Usage:  bash install.sh          # build + install
 #         bash install.sh -r       # uninstall
 set -euo pipefail
-cd "$(dirname "$0")"
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
 
 PKGNAME=trayforge
 
@@ -18,12 +19,12 @@ if [[ "${1:-}" == "-r" ]]; then
 fi
 
 echo "=== Building binary ==="
-bash build.sh
+bash "$ROOT/build.sh"
 
 echo "=== Building & installing Arch package ==="
-# Build in /tmp to avoid conflicting with project src/, output package to dist/
-mkdir -p dist
-BUILDDIR=/tmp/${PKGNAME}-build PKGDEST="$PWD/dist" makepkg -si --noconfirm
+cd "$ROOT/packaging/arch"
+mkdir -p "$ROOT/dist"
+BUILDDIR=/tmp/${PKGNAME}-build PKGDEST="$ROOT/dist" makepkg -si --noconfirm
 
 echo "=== Done: $PKGNAME is now managed by pacman ==="
 echo "  Uninstall: bash install.sh -r"

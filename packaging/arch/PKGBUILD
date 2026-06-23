@@ -13,9 +13,11 @@ options=(!debug)
 install=trayforge.install
 depends=('libayatana-appindicator')
 
+_root="$startdir/../.."
+
 package() {
-  install -Dm755 "$startdir"/dist/TrayForge "$pkgdir/usr/bin/trayforge"
-  install -Dm644 "$startdir"/assets/trayforge.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/trayforge.png"
+  install -Dm755 "$_root"/dist/TrayForge "$pkgdir/usr/bin/trayforge"
+  install -Dm644 "$_root"/assets/trayforge.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/trayforge.png"
 
   install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/trayforge.desktop" << 'EOF'
 [Desktop Entry]
