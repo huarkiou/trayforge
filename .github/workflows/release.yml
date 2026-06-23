@@ -9,29 +9,24 @@ on:
         type: string
 
 jobs:
-  build:
-    runs-on: windows-latest
+  changelog:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.gen.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Generate changelog
-        id: changelog
-        shell: bash
+      - id: gen
         run: |
-          set -e
           TAG="v${{ inputs.version }}"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
           echo "## Changes in $TAG" > CHANGELOG.md
-          echo "" >> CHANGELOG.md
 
           group() {
-            local title="$1"
-            shift
-            local lines
-            lines=$(git log --no-merges --format="- %s (%h)" "$@" 2>/dev/null || true)
+            local title="$1"; shift
+            local lines=$(git log --no-merges --format="- %s (%h)" "$@" 2>/dev/null || true)
             if [ -n "$lines" ]; then
               echo "### $title" >> CHANGELOG.md
               echo "$lines" >> CHANGELOG.md
@@ -39,32 +34,72 @@ jobs:
             fi
           }
 
-          # Determine commit range
           PREV_TAG=$(git tag --sort=-v:refname 2>/dev/null | grep -E '^v[0-9]' | head -1 || true)
-          if [ -n "$PREV_TAG" ]; then
-            RANGE="$PREV_TAG..HEAD"
-          else
-            RANGE=""
-          fi
+          RANGE="${PREV_TAG:+$PREV_TAG..HEAD}"
 
           group "Features" $RANGE --grep="^feat"
           group "Fixes" $RANGE --grep="^fix"
           group "Other" $RANGE -E --grep="^(chore|docs|ci|refactor|build)"
-
-          cat CHANGELOG.md
-
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/upload-artifact@v4
         with:
-          enable-cache: true
+          name: changelog
+          path: CHANGELOG.md
 
-      - run: uv run python -m PyInstaller --onefile --windowed --clean --name TrayForge --icon assets/icon.ico --runtime-tmpdir "%LOCALAPPDATA%/TrayForge/runtime" src/main.pyw
+  windows:
+    needs: changelog
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with: { enable-cache: true }
+      - name: Build
+        shell: cmd
+        run: |
+          uv run python -m PyInstaller --onefile --windowed --clean --name TrayForge --icon assets/icon.ico --runtime-tmpdir "%LOCALAPPDATA%/TrayForge/runtime" --specpath build --hidden-import pystray --hidden-import PIL --hidden-import PIL.Image --hidden-import PIL.ImageDraw --hidden-import PIL.ImageTk --hidden-import PIL._tkinter_finder --hidden-import startup --add-data "assets/icon.ico;assets" src/main.pyw
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trayforge-exe
+          path: dist/TrayForge.exe
+
+  linux:
+    needs: changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libayatana-appindicator3-1
+      - uses: astral-sh/setup-uv@v5
+        with: { enable-cache: true }
+      - run: bash build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trayforge-linux
+          path: |
+            dist/TrayForge
+            assets/trayforge.png
+
+  release:
+    needs: [changelog, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: changelog }
+      - uses: actions/download-artifact@v4
+        with: { name: trayforge-exe }
+      - uses: actions/download-artifact@v4
+        with: { name: trayforge-linux }
+
+      - run: |
+          chmod +x TrayForge
+          ls -la TrayForge TrayForge.exe trayforge.png CHANGELOG.md
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/TrayForge.exe
-          tag_name: ${{ steps.changelog.outputs.tag }}
-          name: TrayForge ${{ steps.changelog.outputs.tag }}
+          files: |
+            TrayForge.exe
+            TrayForge
+            trayforge.png
+          tag_name: ${{ needs.changelog.outputs.tag }}
+          name: TrayForge ${{ needs.changelog.outputs.tag }}
           body_path: CHANGELOG.md
-          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
