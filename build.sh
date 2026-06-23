@@ -23,6 +23,7 @@ uv run pyinstaller \
   --hidden-import startup \
   --hidden-import fcntl \
   --add-data "assets/icon.ico:assets" \
+  --specpath build \
   src/main.pyw
 
 echo ""

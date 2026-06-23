@@ -5,9 +5,6 @@ dist/
 build/
 pkg/
 *.pkg.tar.zst
-*.spec
 *.egg-info/
 .venv/
 .env
-*.spec
-nul
