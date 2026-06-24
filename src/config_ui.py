@@ -98,6 +98,19 @@ class ConfigDialog:
             width=6,
         ).pack(side=tk.LEFT, padx=(5, 0))
 
+        history_frame = ttk.Frame(global_frame)
+        history_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(history_frame, text="Output history limit:").pack(side=tk.LEFT)
+        self.output_history_limit_var = tk.StringVar(value="1000")
+        ttk.Spinbox(
+            history_frame,
+            textvariable=self.output_history_limit_var,
+            from_=100,
+            to=999999,
+            increment=100,
+            width=7,
+        ).pack(side=tk.LEFT, padx=(5, 0))
+
         # --- Processes header + add button ---
         proc_header = ttk.Frame(main_frame)
         proc_header.pack(fill=tk.X, pady=(5, 0))
@@ -451,6 +464,7 @@ class ConfigDialog:
 
         self.output_refresh_var.set(str(config.get("output_refresh_ms", 500)))
         self.poll_interval_var.set(str(config.get("poll_interval_ms", 2000)))
+        self.output_history_limit_var.set(str(config.get("output_history_limit", 1000)))
         self.autostart_var.set(is_autostart_enabled())
 
     def _validate(self) -> str | None:
@@ -484,6 +498,12 @@ class ConfigDialog:
                     int(max_restarts_str)
                 except ValueError:
                     return f"Restart limit must be a number for '{name}'."
+        try:
+            limit = int(self.output_history_limit_var.get())
+            if limit < 100:
+                return "Output history limit must be at least 100."
+        except (ValueError, TypeError):
+            return "Output history limit must be a number."
         return None
 
     def _on_save(self) -> None:
@@ -524,6 +544,7 @@ class ConfigDialog:
             "processes": processes,
             "output_refresh_ms": int(self.output_refresh_var.get()),
             "poll_interval_ms": int(self.poll_interval_var.get()),
+            "output_history_limit": int(self.output_history_limit_var.get()),
             "autostart": self.autostart_var.get(),
         }
 
