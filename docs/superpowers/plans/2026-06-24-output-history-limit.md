@@ -392,7 +392,7 @@ Expected: zero type errors
 ```bash
 cd /mnt/d/Projects/Program/TrayForge && uv run pytest tests/ -v --ignore=tests/test_integration.py
 ```
-Expected: 134 tests pass (integration excluded since it needs desktop session)
+Expected: ~136 unit tests pass (integration excluded since it needs desktop session; exact count may vary with new tests added)
 
 - [ ] **Step 5: Commit if any cleanups needed**
 
