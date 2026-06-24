@@ -10,8 +10,6 @@ from logger import get_main_logger
 import sys
 import os
 
-MAX_LINES = 5000
-
 
 class MainWindow:
     def __init__(self) -> None:
@@ -53,6 +51,7 @@ class MainWindow:
         self._visible = False
         self._close_callback: Callable[..., None] | None = None
         self._logger = get_main_logger()
+        self._max_lines = 1000
 
         self.root.withdraw()
 
@@ -73,6 +72,10 @@ class MainWindow:
                 self.notebook.add(frame, text=name)
                 text = self._create_text_widget(frame)
                 self._tabs[name] = text
+
+    def set_output_history_limit(self, limit: int) -> None:
+        """Update the max log lines shown per-process tab."""
+        self._max_lines = max(limit, 0)
 
     def _create_text_widget(self, parent: ttk.Frame) -> tk.Text:
         """Create a read-only text widget with Clear button at bottom."""
@@ -163,8 +166,8 @@ class MainWindow:
         text.insert(tk.END, line + "\n")
 
         line_count = int(text.index("end-1c").split(".")[0])
-        if line_count > MAX_LINES:
-            excess = line_count - MAX_LINES
+        if line_count > self._max_lines:
+            excess = line_count - self._max_lines
             text.delete("1.0", f"{excess}.0")
 
         text.config(state=tk.DISABLED)
