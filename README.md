@@ -16,6 +16,7 @@
 - 动态 Tab 实时查看每个进程的输出
 - 进程崩溃自动重启（60s 冷却，最多 3 次）
 - Settings 图形化配置：添加/删除/复制/上移/下移进程，Cmd 多行编辑，全局参数调整
+- 日志行数限制（Output history limit），控制主窗口最大显示行数，可配置
 - 每进程独立日志文件
 - 开机自启（主程序 + 每进程独立控制）
 - 单实例运行保护
@@ -203,9 +204,18 @@ TrayForge.exe list           # 另一个终端查看状态
   ],
   "output_refresh_ms": 500,
   "poll_interval_ms": 2000,
-  "autostart": false
+  "autostart": false,
+  "output_history_limit": 1000
 }
 ```
+
+全局配置项：
+| 字段 | 说明 |
+|---|---|
+| `output_refresh_ms` | 输出刷新间隔（毫秒），默认 500 |
+| `poll_interval_ms` | 崩溃轮询间隔（毫秒），默认 2000 |
+| `autostart` | 是否开机自启 TrayForge |
+| `output_history_limit` | 主窗口最大显示/缓存日志行数，默认 1000（范围 100+） |
 
 也可通过托盘菜单 → **Settings** 图形化配置（添加/删除/编辑进程）。
 
