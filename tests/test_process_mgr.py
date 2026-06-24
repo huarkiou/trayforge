@@ -25,6 +25,7 @@ def _make_config(processes=None, max_restarts=0):
         "processes": processes,
         "output_refresh_ms": 500,
         "poll_interval_ms": 2000,
+        "output_history_limit": 1000,
         "autostart": False,
     }
 

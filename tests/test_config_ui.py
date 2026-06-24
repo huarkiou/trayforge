@@ -156,6 +156,7 @@ class TestOnSave:
                 result = dlg._result
                 assert result is not None
                 assert result["output_refresh_ms"] == 300
+                assert result.get("output_history_limit", 1000) == 1000
                 proc = result["processes"][0]
                 assert proc["name"] == "Test"
                 assert proc["cwd"] == "D:/apps"
@@ -181,6 +182,20 @@ class TestOnSave:
                 dlg._proc_entries[0]["vars"]["webui_pattern"].set("")
                 dlg._on_save()
                 assert dlg._result["processes"][0]["webui_pattern"] is None
+
+
+class TestOutputHistoryLimitValidation:
+    def test_rejects_non_numeric(self, dlg):
+        dlg.output_history_limit_var = tk.StringVar(value="abc")
+        err = dlg._validate()
+        assert err is not None
+        assert "Output history limit must be a number" in err
+
+    def test_rejects_below_100(self, dlg):
+        dlg.output_history_limit_var = tk.StringVar(value="50")
+        err = dlg._validate()
+        assert err is not None
+        assert "at least 100" in err
 
 
 # --- Process list manipulation ---

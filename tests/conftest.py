@@ -44,6 +44,7 @@ def pm():
         ],
         "output_refresh_ms": 500,
         "poll_interval_ms": 2000,
+        "output_history_limit": 1000,
         "autostart": False,
     }
     return ProcessManager(config)

@@ -16,6 +16,7 @@ def test_default_config_structure():
     assert cfg["output_refresh_ms"] == 500
     assert cfg["poll_interval_ms"] == 2000
     assert cfg["autostart"] is False
+    assert cfg["output_history_limit"] == 1000
 
 
 def test_default_config_returns_fresh_copy_each_time():

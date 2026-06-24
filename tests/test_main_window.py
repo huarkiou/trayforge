@@ -72,15 +72,13 @@ class TestAppendOutput:
         window.set_processes(["A"])
         window._append_output_impl("B", "hello")  # should not raise
 
-    def test_trims_old_lines(self, window, monkeypatch):
-        import main_window as mw
-
-        monkeypatch.setattr(mw, "MAX_LINES", 4)
+    def test_trims_old_lines(self, window):
+        window._max_lines = 4
         window.set_processes(["A"])
         text = window._tabs["A"]
         for i in range(6):
             window._append_output_impl("A", f"line {i}")
-        # After 6 inserts with MAX_LINES=4, oldest 2 lines trimmed
+        # After 6 inserts with _max_lines=4, oldest 2 lines trimmed
         content = text.get("1.0", "end-1c").rstrip("\n")
         lines = content.split("\n")
         assert lines[0] == "line 2"
