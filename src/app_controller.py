@@ -42,6 +42,7 @@ class AppController:
             self._config = config
             self._pm.update_config(config)
             self._window.set_processes(self._pm.process_names())
+            self._window.set_output_history_limit(config.get("output_history_limit", 1000))
             logger.info("Config reloaded from disk")
             return True
         else:
@@ -71,6 +72,9 @@ class AppController:
                     self._config = result
                     self._pm.update_config(result)
                     self._window.set_processes(self._pm.process_names())
+                    self._window.set_output_history_limit(
+                        self._config.get("output_history_limit", 1000)
+                    )
                     logger.info("Config updated at runtime")
             finally:
                 self._settings_open = False
@@ -179,6 +183,8 @@ class AppController:
                 name = proc["name"]
                 logger.info("Autostart: %s", name)
                 self._window.root.after(500, lambda n=name: self._pm.start(n))
+
+        self._window.set_output_history_limit(self._config.get("output_history_limit", 1000))
 
         # Start HTTP server for CLI control
         self._http_server = create_server(
