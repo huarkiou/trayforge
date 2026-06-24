@@ -22,6 +22,7 @@ class AppConfig(TypedDict):
     output_refresh_ms: int
     poll_interval_ms: int
     autostart: bool
+    output_history_limit: int
 
 
 class ProcessStatus(TypedDict):

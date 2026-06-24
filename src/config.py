@@ -67,6 +67,7 @@ def get_default_config() -> AppConfig:
         "output_refresh_ms": 500,
         "poll_interval_ms": 2000,
         "autostart": False,
+        "output_history_limit": 1000,
     }
 
 
