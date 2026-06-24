@@ -33,10 +33,12 @@ Config key: `"output_history_limit"`. Backward compatibility: `cfg.get("output_h
   - `ttk.Spinbox(from_=100, to=999999, increment=100, width=7)`
   - Variable: `self.output_history_limit_var = tk.StringVar(value="1000")`
 - `_load_current_config`: read `output_history_limit` from config.
+- `_validate()`: add clause to reject non-numeric or <100 values (Spinbox allows arbitrary text input despite `from_`/`to` constraints).
 - `_on_save`: save `int(self.output_history_limit_var.get())` into config dict.
 
 #### 5. `src/app_controller.py`
 - `start()`: after config is known, call `self._window.set_output_history_limit(config["output_history_limit"])`.
+- `_make_settings_callback()` / `open_settings()` closure: call `self._window.set_output_history_limit(self._config.get("output_history_limit", 1000))` after `set_processes()`. This is the primary runtime-change path (Settings → Save).
 - `_reload_config()`: call `self._window.set_output_history_limit(new_config["output_history_limit"])` on reload.
 
 ### Data Flow
@@ -45,7 +47,8 @@ Config key: `"output_history_limit"`. Backward compatibility: `cfg.get("output_h
 config.json  →  AppConfig["output_history_limit"]
                         ↓
 AppController.start()  →  window.set_output_history_limit()
-AppController._reload_config()  →  window.set_output_history_limit()
+AppController._make_settings_callback()  →  window.set_output_history_limit()  (Settings → Save)
+AppController._reload_config()  →  window.set_output_history_limit()  (CLI reload)
                         ↓
 MainWindow._append_output_impl()  →  trims lines > self._max_lines
 ```
@@ -54,7 +57,13 @@ ConfigDialog reads/writes `output_history_limit` through Spinbox → `_on_save` 
 
 ### Testing Impact
 
-- `test_main_window.py`: update `test_trims_old_lines` — monkeypatch `self._max_lines` on the instance instead of module constant.
+All test config dicts should include `"output_history_limit": 1000` for consistent coverage. Files with config fixtures:
+
+- `tests/conftest.py`: `pm` fixture config dict
+- `tests/test_process_mgr.py`: `_make_config()` helper used by 22 test cases
+- `tests/test_integration.py`: `_write_test_config()` for end-to-end tests
+
+Test-specific changes:
+- `test_main_window.py`: update `test_trims_old_lines` — monkeypatch instance `_max_lines` instead of module constant.
 - `test_config.py`: `test_default_config_structure` — add assertion for `output_history_limit`.
-- `test_config_ui.py`: `TestBuildProcessRow.test_creates_all_var_keys` is for ProcessConfig only, so no change. But `test_on_save.test_produces_correct_config` and similar tests for `AppConfig` keys — add assertion for `output_history_limit`. Also add a test for the new Spinbox in the global section.
-- `conftest.py`: `pm` fixture config dict — add `"output_history_limit": 1000` for consistency.
+- `test_config_ui.py`: add assertion for `output_history_limit` in `test_produces_correct_config`; add test for validation of non-numeric / <100 input.
