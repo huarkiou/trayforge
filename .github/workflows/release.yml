@@ -125,15 +125,15 @@ jobs:
         with: { name: trayforge-linux }
 
       - run: |
-          chmod +x TrayForge
-          ls -la TrayForge TrayForge.exe trayforge.png CHANGELOG.md
+          chmod +x dist/TrayForge
+          ls -la TrayForge.exe dist/TrayForge assets/trayforge.png CHANGELOG.md
 
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             TrayForge.exe
-            TrayForge
-            trayforge.png
+            dist/TrayForge
+            assets/trayforge.png
           tag_name: ${{ needs.changelog.outputs.tag }}
           name: TrayForge ${{ needs.changelog.outputs.tag }}
           body_path: CHANGELOG.md
