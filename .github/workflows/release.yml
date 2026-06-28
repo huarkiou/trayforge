@@ -57,8 +57,22 @@ jobs:
           name: changelog
           path: CHANGELOG.md
 
-  windows:
+  test:
     needs: changelog
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with: { enable-cache: true }
+      - run: sudo apt-get update && sudo apt-get install -y xvfb
+      - run: uv sync
+      - run: uv run ruff format --check src/ tests/
+      - run: uv run ruff check src/ tests/
+      - run: xvfb-run uv run pytest tests/ -v
+
+  windows:
+    needs: [changelog, test]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,7 +88,7 @@ jobs:
           path: dist/TrayForge.exe
 
   linux:
-    needs: changelog
+    needs: [changelog, test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -90,7 +104,7 @@ jobs:
             assets/trayforge.png
 
   release:
-    needs: [changelog, windows, linux]
+    needs: [changelog, test, windows, linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
