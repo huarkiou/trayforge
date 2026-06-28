@@ -10,6 +10,7 @@ rm -rf build dist 2>/dev/null || true
 mkdir -p dist
 
 # Build with PyInstaller
+PROJECT_DIR=$(pwd)
 uv run pyinstaller \
   --onefile \
   --clean \
@@ -22,7 +23,7 @@ uv run pyinstaller \
   --hidden-import PIL._tkinter_finder \
   --hidden-import startup \
   --hidden-import fcntl \
-  --add-data "assets/icon.ico:assets" \
+  --add-data "${PROJECT_DIR}/assets/icon.ico:assets" \
   --specpath build \
   src/main.pyw
 

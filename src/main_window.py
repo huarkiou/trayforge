@@ -20,6 +20,15 @@ class MainWindow:
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("TrayForge")
 
         self.root = tk.Tk()
+
+        # Withdraw now to prevent window flash during startup
+        self.root.withdraw()
+        if sys.platform != "win32":
+            try:
+                self.root.wm_attributes("-alpha", 0)
+            except tk.TclError:
+                pass
+
         self.root.title("TrayForge - Process Control")
         self._tk_icon = ImageTk.PhotoImage(get_app_icon())
         self.root.iconphoto(True, self._tk_icon)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
@@ -52,8 +61,6 @@ class MainWindow:
         self._close_callback: Callable[..., None] | None = None
         self._logger = get_main_logger()
         self._max_lines = 1000
-
-        self.root.withdraw()
 
     def set_processes(self, names: list[str]) -> None:
         """Rebuild tabs to match the given process name list. Preserves existing tabs."""
@@ -135,6 +142,11 @@ class MainWindow:
             self._close_callback()
 
     def show(self) -> None:
+        if sys.platform != "win32":
+            try:
+                self.root.wm_attributes("-alpha", 1)
+            except tk.TclError:
+                pass
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()

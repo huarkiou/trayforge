@@ -87,6 +87,7 @@ else:
             "Terminal=false\n"
             "StartupNotify=false\n"
             "Hidden=false\n"
+            "X-GNOME-Autostart-Delay=2\n"
         )
         try:
             os.makedirs(os.path.dirname(desktop_path), exist_ok=True)
