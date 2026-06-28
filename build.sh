@@ -11,8 +11,6 @@ mkdir -p dist
 
 # Build with PyInstaller
 PROJECT_DIR=$(pwd)
-# Ensure PyInstaller's gi hook finds GI typelibs on multiarch systems
-export GI_TYPELIB_PATH="${GI_TYPELIB_PATH:-}${GI_TYPELIB_PATH:+:}/usr/lib/x86_64-linux-gnu/girepository-1.0"
 uv run pyinstaller \
   --onefile \
   --clean \

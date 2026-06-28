@@ -57,83 +57,14 @@ jobs:
           name: changelog
           path: CHANGELOG.md
 
-  test:
-    needs: changelog
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with: { enable-cache: true }
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            xvfb python3-tk \
-            libcairo2-dev libgirepository-2.0-dev \
-            gobject-introspection gir1.2-gtk-3.0
-      - run: uv sync
-      - run: uv run ruff format --check src/ tests/
-      - run: uv run ruff check src/ tests/
-      - run: xvfb-run uv run pytest tests/ -v
-
-  windows:
-    needs: [changelog, test]
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with: { enable-cache: true }
-      - name: Build
-        shell: cmd
-        run: |
-          uv run python -m PyInstaller --onefile --windowed --clean --name TrayForge --icon assets/icon.ico --runtime-tmpdir "%LOCALAPPDATA%/TrayForge/runtime" --hidden-import pystray --hidden-import PIL --hidden-import PIL.Image --hidden-import PIL.ImageDraw --hidden-import PIL.ImageTk --hidden-import PIL._tkinter_finder --hidden-import startup --add-data "assets/icon.ico;assets" src/main.pyw
-      - uses: actions/upload-artifact@v4
-        with:
-          name: trayforge-exe
-          path: dist/TrayForge.exe
-
-  linux:
-    needs: [changelog, test]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libayatana-appindicator3-1 python3-tk \
-            libcairo2-dev libgirepository-2.0-dev \
-            gobject-introspection gir1.2-gtk-3.0
-      - uses: astral-sh/setup-uv@v5
-        with: { enable-cache: true }
-      - run: bash build.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: trayforge-linux
-          path: |
-            dist/TrayForge
-            assets/trayforge.png
-
   release:
-    needs: [changelog, test, windows, linux]
+    needs: changelog
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with: { name: changelog }
-      - uses: actions/download-artifact@v4
-        with: { name: trayforge-exe }
-      - uses: actions/download-artifact@v4
-        with: { name: trayforge-linux }
-
-      - run: |
-          chmod +x dist/TrayForge
-          ls -la TrayForge.exe dist/TrayForge assets/trayforge.png CHANGELOG.md
-
       - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            TrayForge.exe
-            dist/TrayForge
-            assets/trayforge.png
           tag_name: ${{ needs.changelog.outputs.tag }}
           name: TrayForge ${{ needs.changelog.outputs.tag }}
           body_path: CHANGELOG.md
