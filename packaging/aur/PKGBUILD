@@ -4,7 +4,7 @@
 # Before submitting: update pkgver, run `updpkgsums` to generate sha256sums
 
 pkgname=trayforge-bin
-pkgver=1.0.0
+pkgver=0.7.0
 pkgrel=1
 pkgdesc="Cross-platform system tray process manager for NapCat QQ, AstrBot, llama.cpp"
 arch=('x86_64')
