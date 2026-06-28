@@ -114,6 +114,8 @@ def _has_display() -> bool:
 @pytest.fixture(scope="module")
 def server():
     """Start TrayForge GUI in isolated test dir, yield port, then kill and clean up."""
+    if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+        pytest.skip("CI environment (needs D-Bus session for GUI subprocess)")
     if not _has_display():
         pytest.skip("No display available (headless environment)")
     # Kill stale processes from previous failed runs
