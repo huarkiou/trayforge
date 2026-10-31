@@ -2,22 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/screens/settings_page.dart';
-import 'package:trayforge/services/autostart.dart';
-import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 
+import '../helpers/localized_app.dart';
 import '../helpers/recording_config_store.dart';
-
-/// No config reloads and no registry access are needed for the stepper tests.
-class _FakeProcessManager extends Fake implements ProcessManager {
-  @override
-  Stream<void> get onConfigReloaded => const Stream.empty();
-}
-
-class _FakeAutostart extends Fake implements Autostart {
-  @override
-  bool isEnabled() => false;
-}
+import '../helpers/settings_fakes.dart';
 
 void main() {
   Future<SettingsViewModel> pumpSettings(
@@ -27,12 +16,12 @@ void main() {
     final store = RecordingConfigStore(AppConfig(servicePollMs: servicePollMs));
     final viewModel = SettingsViewModel(
       configStore: store,
-      processManager: _FakeProcessManager(),
-      autostart: _FakeAutostart(),
+      processManager: StubProcessManager(),
+      autostart: StubAutostart(),
     );
     addTearDown(viewModel.dispose);
     await tester.pumpWidget(
-      MaterialApp(home: SettingsPage(viewModel: viewModel)),
+      localizedApp(home: SettingsPage(viewModel: viewModel)),
     );
     return viewModel;
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_reorderable_grid_view/widgets/widgets.dart';
 import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/screens/process_detail_screen.dart';
 import 'package:trayforge/screens/process_edit_page.dart';
 import 'package:trayforge/screens/service_detail_page.dart';
@@ -58,21 +59,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _showCorruptedDialog() {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Configuration Error'),
-        content: const Text(
-          'The configuration file is corrupted and has been backed up. '
-          'Please check your config file.',
-        ),
+        title: Text(l10n.configErrorTitle),
+        content: Text(l10n.configErrorBody),
         actions: [
           TextButton(
             onPressed: () {
               widget.viewModel.clearCorruptedFlag();
               Navigator.of(ctx).pop();
             },
-            child: const Text('OK'),
+            child: Text(l10n.ok),
           ),
         ],
       ),
@@ -82,6 +81,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final settingsViewModel = widget.settingsViewModel;
+    final l10n = AppLocalizations.of(context);
     return ListenableBuilder(
       listenable: Listenable.merge([widget.viewModel, ?settingsViewModel]),
       builder: (context, _) {
@@ -90,14 +90,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             settingsViewModel?.dashboardLayout == DashboardLayout.list;
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Dashboard'),
+            title: Text(l10n.dashboardTitle),
             actions: [
               if (settingsViewModel != null && !isEmpty)
                 IconButton(
                   icon: Icon(isListLayout ? Icons.grid_view : Icons.view_list),
                   tooltip: isListLayout
-                      ? 'Switch to grid view'
-                      : 'Switch to list view',
+                      ? l10n.dashboardSwitchToGrid
+                      : l10n.dashboardSwitchToList,
                   onPressed: () => settingsViewModel.setDashboardLayout(
                     isListLayout ? DashboardLayout.grid : DashboardLayout.list,
                   ),
@@ -105,26 +105,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
               if (settingsViewModel != null)
                 PopupMenuButton<_AddKind>(
                   icon: const Icon(Icons.add),
-                  tooltip: 'Add',
+                  tooltip: l10n.add,
                   onSelected: (kind) => switch (kind) {
                     _AddKind.process => _addProcess(),
                     _AddKind.serviceGroup => _addServiceGroup(),
                   },
-                  itemBuilder: (context) => const [
+                  itemBuilder: (context) => [
                     PopupMenuItem(
                       value: _AddKind.process,
-                      child: Text('Add process'),
+                      child: Text(l10n.dashboardAddProcess),
                     ),
                     PopupMenuItem(
                       value: _AddKind.serviceGroup,
-                      child: Text('Add service group'),
+                      child: Text(l10n.dashboardAddServiceGroup),
                     ),
                   ],
                 ),
               if (settingsViewModel != null)
                 IconButton(
                   icon: const Icon(Icons.settings),
-                  tooltip: 'Settings',
+                  tooltip: l10n.dashboardSettings,
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -147,13 +147,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildWelcomeBody(BuildContext context) {
     final canEdit = widget.settingsViewModel != null;
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'No processes or service groups configured',
-            style: TextStyle(fontSize: 18, color: Colors.grey),
+          Text(
+            l10n.dashboardEmpty,
+            style: const TextStyle(fontSize: 18, color: Colors.grey),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -165,12 +166,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               FilledButton.icon(
                 onPressed: canEdit ? _addProcess : null,
                 icon: const Icon(Icons.add),
-                label: const Text('Add Process'),
+                label: Text(l10n.dashboardAddProcessButton),
               ),
               OutlinedButton.icon(
                 onPressed: canEdit ? _addServiceGroup : null,
                 icon: const Icon(Icons.dns_outlined),
-                label: const Text('Add Service Group'),
+                label: Text(l10n.dashboardAddServiceGroupButton),
               ),
             ],
           ),

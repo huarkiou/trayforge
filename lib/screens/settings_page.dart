@@ -2,7 +2,15 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
+import 'package:trayforge/l10n/language_names.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
+
+/// Sentinel dropdown value for "follow the system locale".
+///
+/// `DropdownButton` treats a `null` value as "nothing selected", so the
+/// system-default entry needs its own value; it never reaches the config.
+const String _systemLanguageTag = '__system__';
 
 /// Settings page showing only global configuration options.
 ///
@@ -69,13 +77,11 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _reloadFromDisk() async {
     final reloaded = await _vm.reloadFromDisk();
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          reloaded
-              ? 'Configuration reloaded'
-              : 'config.json could not be read (a corrupted file is backed up '
-                    'next to it)',
+          reloaded ? l10n.settingsReloaded : l10n.settingsReloadFailed,
         ),
         backgroundColor: reloaded ? null : Colors.red,
       ),
@@ -91,7 +97,7 @@ class _SettingsPageState extends State<SettingsPage> {
     required int max,
     required int step,
     required ValueChanged<int> onChanged,
-    String hint = 'Takes effect on next process start',
+    String? hint,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,7 +162,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         const SizedBox(height: 4),
         Text(
-          hint,
+          hint ?? AppLocalizations.of(context).settingsTakesEffectOnStart,
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: Colors.grey),
@@ -165,16 +171,47 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  /// The language row: "System default" plus one entry per shipped locale.
+  Widget _buildLanguageTile() {
+    final l10n = AppLocalizations.of(context);
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.translate),
+      title: Text(l10n.settingsLanguage),
+      trailing: DropdownButton<String>(
+        value: _vm.language ?? _systemLanguageTag,
+        underline: const SizedBox.shrink(),
+        onChanged: (value) => _vm.setLanguage(
+          value == null || value == _systemLanguageTag ? null : value,
+        ),
+        items: [
+          DropdownMenuItem(
+            value: _systemLanguageTag,
+            child: Text(l10n.settingsLanguageSystem),
+          ),
+          for (final locale in AppLocalizations.supportedLocales)
+            DropdownMenuItem(
+              value: locale.toLanguageTag(),
+              // A language is always listed in itself, so the picker stays
+              // readable whatever the current UI language is.
+              child: Text(languageDisplayName(locale)),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(l10n.settingsTitle)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           _buildStepperField(
-            label: 'Output refresh (ms)',
-            tooltip: 'Lower = smoother, higher = less CPU',
+            label: l10n.settingsOutputRefresh,
+            tooltip: l10n.settingsOutputRefreshTip,
             controller: _refreshCtrl,
             value: _vm.outputRefreshMs,
             min: 100,
@@ -184,8 +221,8 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 16),
           _buildStepperField(
-            label: 'History limit',
-            tooltip: 'Max lines per process',
+            label: l10n.settingsHistoryLimit,
+            tooltip: l10n.settingsHistoryLimitTip,
             controller: _historyCtrl,
             value: _vm.outputHistoryLimit,
             min: 100,
@@ -195,35 +232,31 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 16),
           _buildStepperField(
-            label: 'Service poll (ms)',
-            tooltip:
-                'How often service groups re-query their state. '
-                'Status queries never prompt for elevation.',
+            label: l10n.settingsServicePoll,
+            tooltip: l10n.settingsServicePollTip,
             controller: _servicePollCtrl,
             value: _vm.servicePollMs,
             min: 1000,
             max: 3600000,
             step: 1000,
             onChanged: _applyServicePollMs,
-            hint: 'Applies immediately',
+            hint: l10n.settingsAppliesImmediately,
           ),
           const SizedBox(height: 8),
           SwitchListTile(
-            title: const Text('Launch at startup'),
+            title: Text(l10n.settingsAutostart),
             value: _vm.autostartEnabled,
             onChanged: (_) => _vm.toggleAutostart(),
             contentPadding: EdgeInsets.zero,
           ),
           const Divider(),
+          _buildLanguageTile(),
+          const Divider(),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.refresh),
-            title: const Text('Reload config from disk'),
-            subtitle: const Text(
-              'Re-reads config.json and applies process and service changes '
-              'without restarting. Processes removed from the file are '
-              'stopped.',
-            ),
+            title: Text(l10n.settingsReload),
+            subtitle: Text(l10n.settingsReloadSubtitle),
             onTap: _reloadFromDisk,
           ),
         ],

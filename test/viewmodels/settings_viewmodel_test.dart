@@ -1,15 +1,18 @@
 import 'dart:io';
+import 'dart:ui' show Locale;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/foundation/service_operator.dart';
 import 'package:trayforge/foundation/service_status.dart';
+import 'package:trayforge/l10n/validation_text.dart';
 import 'package:trayforge/services/autostart.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/services/service_manager.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 
+import '../helpers/localized_app.dart';
 import '../helpers/service_fakes.dart';
 import '../helpers/test_mocks.dart';
 
@@ -316,6 +319,93 @@ void main() {
         viewModel.validateUnit(const ProcessConfig(name: 'ok', cmd: 'run')),
         isNull,
       );
+    });
+
+    // ---- Language ----
+
+    group('language', () {
+      test('defaults to following the system', () {
+        expect(viewModel.language, isNull);
+        expect(viewModel.locale, isNull);
+      });
+
+      test('setLanguage persists the tag and notifies', () {
+        var notifications = 0;
+        viewModel.addListener(() => notifications++);
+
+        viewModel.setLanguage('zh');
+
+        expect(viewModel.language, 'zh');
+        expect(viewModel.locale, const Locale('zh'));
+        expect(viewModel.localizations.settingsTitle, '设置');
+        expect(configStore.load()?.language, 'zh');
+        expect(notifications, greaterThan(0));
+      });
+
+      test('setLanguage(null) drops the override', () {
+        viewModel.setLanguage('zh');
+
+        viewModel.setLanguage(null);
+
+        expect(viewModel.language, isNull);
+        expect(configStore.load()?.language, isNull);
+      });
+
+      test('a hand-edited zh-CN reads back as the shipped zh tag', () async {
+        writeConfig(tmpDir, const AppConfig(language: 'zh-CN'));
+
+        await viewModel.reloadFromDisk();
+
+        expect(viewModel.language, 'zh');
+        expect(viewModel.locale, const Locale('zh'));
+      });
+
+      test('an unsupported tag reads as "follow the system"', () async {
+        writeConfig(tmpDir, const AppConfig(language: 'ja'));
+
+        await viewModel.reloadFromDisk();
+
+        expect(viewModel.language, isNull);
+        expect(viewModel.locale, isNull);
+      });
+
+      test('validateUnit returns the structured rejection', () {
+        // Every rule the store enforces, so a new rule cannot ship without a
+        // matching reason and a localized rendering.
+        final noServices = viewModel.validateUnit(
+          const ServiceConfig(name: 'g', services: []),
+        );
+        final emptyName = viewModel.validateUnit(
+          const ServiceConfig(name: '  ', services: ['A']),
+        );
+        final separator = viewModel.validateUnit(
+          const ProcessConfig(name: 'a/b', cmd: 'run'),
+        );
+        final badPattern = viewModel.validateUnit(
+          const ProcessConfig(name: 'p', cmd: 'run', webuiPattern: '[unclosed'),
+        );
+
+        expect(noServices?.reason, UnitValidationReason.noServices);
+        expect(emptyName?.reason, UnitValidationReason.emptyName);
+        expect(separator?.reason, UnitValidationReason.nameSeparator);
+        expect(badPattern?.reason, UnitValidationReason.invalidWebuiPattern);
+
+        expect(noServices?.unitName, 'g');
+        expect(emptyName?.unitKind, UnitKind.service);
+        expect(separator?.unitName, 'a/b');
+
+        expect(
+          noServices?.describe(enStrings),
+          'Service group "g" needs at least one service',
+        );
+        expect(noServices?.describe(zhStrings), '服务组“g”至少需要一个服务');
+        expect(emptyName?.describe(zhStrings), '服务组名称不能为空');
+        expect(separator?.describe(zhStrings), r'进程名称“a/b”不能包含 / 或 \');
+        expect(
+          badPattern?.describe(zhStrings),
+          startsWith('无效的 webui_pattern 正则表达式：'),
+        );
+      });
     });
   });
 }

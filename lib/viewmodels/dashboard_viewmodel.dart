@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/services/service_manager.dart';
@@ -89,15 +90,21 @@ class DashboardViewModel extends ChangeNotifier {
   final List<StreamSubscription<void>> _configSubs = [];
 
   /// App title shown in the window title bar and Dashboard header.
+  ///
+  /// The product name is not localized: "trayforge" is the same in every
+  /// language.
   static const String appTitle = 'trayforge';
 
   /// The window title, marked when TrayForge itself runs elevated.
   ///
   /// The suffix is the at-a-glance signal that this instance holds the
   /// administrator token — and therefore that every process it starts
-  /// inherits it and an `elevated` launch skips the UAC prompt.
-  static String windowTitle({required bool elevated}) =>
-      elevated ? '$appTitle (Administrator)' : appTitle;
+  /// inherits it and an `elevated` launch skips the UAC prompt. The title lives
+  /// outside the widget tree, so the caller passes the resolved [l10n].
+  static String windowTitle({
+    required bool elevated,
+    required AppLocalizations l10n,
+  }) => elevated ? l10n.windowTitleAdministrator : appTitle;
 
   DashboardViewModel({
     required ConfigStore configStore,

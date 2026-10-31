@@ -15,6 +15,7 @@ import 'package:trayforge/widgets/process_card.dart';
 import 'package:trayforge/widgets/service_card.dart';
 import 'package:trayforge/widgets/status_dot.dart';
 
+import '../helpers/localized_app.dart';
 import '../helpers/recording_config_store.dart';
 import '../helpers/service_fakes.dart';
 
@@ -81,7 +82,7 @@ pumpDashboard(
         )
       : null;
   await tester.pumpWidget(
-    MaterialApp(
+    localizedApp(
       home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
     ),
   );

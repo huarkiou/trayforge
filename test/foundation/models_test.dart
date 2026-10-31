@@ -519,6 +519,27 @@ void main() {
         expect(AppConfig.fromJson(json).dashboardLayout, DashboardLayout.list);
       });
 
+      test('round-trips the language tag', () {
+        final json = const AppConfig(language: 'zh').toJson();
+        expect(json['language'], 'zh');
+        expect(AppConfig.fromJson(json).language, 'zh');
+      });
+
+      test('omits the language when following the system', () {
+        final json = const AppConfig().toJson();
+        expect(json.containsKey('language'), isFalse);
+        expect(AppConfig.fromJson(json).language, isNull);
+      });
+
+      test('keeps an unusable language value out of the config', () {
+        // The model stores whatever tag it is given; normalizing it against the
+        // shipped locales is the settings view model's job, but a non-string or
+        // blank value must not make the whole config unreadable.
+        expect(AppConfig.fromJson({'language': 42}).language, isNull);
+        expect(AppConfig.fromJson({'language': '   '}).language, isNull);
+        expect(AppConfig.fromJson({'language': 'ja'}).language, 'ja');
+      });
+
       test('deserializes a migrated legacy config', () {
         final json = {
           'output_history_limit': 500,

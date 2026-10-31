@@ -1,0 +1,223 @@
+{
+  "@@locale": "en",
+
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete",
+  "ok": "OK",
+  "add": "Add",
+  "remove": "Remove",
+  "duplicate": "Duplicate",
+
+  "windowTitleAdministrator": "trayforge (Administrator)",
+  "trayReloadSettings": "Reload Settings",
+  "trayDashboard": "Dashboard",
+  "trayExit": "Exit",
+
+  "kindProcess": "Process",
+  "kindServiceGroup": "Service group",
+
+  "dashboardTitle": "Dashboard",
+  "dashboardSwitchToGrid": "Switch to grid view",
+  "dashboardSwitchToList": "Switch to list view",
+  "dashboardAddProcess": "Add process",
+  "dashboardAddServiceGroup": "Add service group",
+  "dashboardAddProcessButton": "Add Process",
+  "dashboardAddServiceGroupButton": "Add Service Group",
+  "dashboardSettings": "Settings",
+  "dashboardEmpty": "No processes or service groups configured",
+  "configErrorTitle": "Configuration Error",
+  "configErrorBody": "The configuration file is corrupted and has been backed up. Please check your config file.",
+
+  "editProcessTooltip": "Edit process",
+  "processClearOutput": "Clear output",
+  "processSearchOutput": "Search output",
+  "processCloseSearch": "Close search",
+  "processFilterHint": "Filter output...",
+  "processNoMatchingLines": "No matching lines",
+  "noOutputYet": "No output yet",
+  "toggleStart": "Start",
+  "toggleStop": "Stop",
+  "copyWebuiTooltip": "Copy WebUI URL (right-click: open in browser)",
+  "urlCopied": "URL copied",
+
+  "editCommandTitle": "Edit Command",
+  "editCommandHint": "Enter command (Ctrl+Enter to save)",
+  "fieldName": "Name *",
+  "fieldNameHelper": "Must not contain / or \\",
+  "nameRequired": "Name is required",
+  "nameSeparator": "Name must not contain / or \\",
+  "fieldCwd": "Working Directory (cwd)",
+  "fieldCwdHint": "e.g. C:\\MyApp",
+  "browseTooltip": "Browse…",
+  "fieldCommand": "Command *",
+  "fieldCommandHint": "e.g. myapp.exe --flag",
+  "commandRequired": "Command is required",
+  "multiLineEditorTooltip": "Multi-line editor…",
+  "fieldEncoding": "Encoding",
+  "singletonTitle": "Singleton",
+  "singletonSubtitle": "Prevent starting if a process with the same name is already running",
+  "autostartTitle": "Autostart",
+  "autostartSubtitle": "Start this process automatically on launch",
+  "cleanupCwdTitle": "Cleanup CWD",
+  "cleanupCwdSubtitle": "Kill residual processes from the same working directory before start",
+  "elevatedTitle": "Run as administrator",
+  "elevatedSubtitle": "Launch with administrator rights. Windows shows a UAC prompt only while TrayForge itself is not elevated; when it is, output and env vars are captured like any other process.",
+  "fieldWebuiPattern": "WebUI Pattern",
+  "fieldWebuiPatternHint": "e.g. WebUI started at (http://[\\d.:]+)",
+  "fieldLogFile": "Log File",
+  "fieldLogFileHelper": "Tail this file into the output pane (relative to cwd). The only output channel for elevated processes while TrayForge is not elevated.",
+  "fieldLogFileHint": "e.g. logs\\app.log",
+  "fieldMaxRestarts": "Max Restarts",
+  "fieldMaxRestartsHint": "e.g. 3",
+  "deleteBeforeStartTitle": "Delete Before Start",
+  "deleteBeforeStartHelper": "One file path per line, relative to working directory",
+  "deleteBeforeStartHint": "temp.lock\ncache.dat",
+  "envVarsTitle": "Environment Variables",
+  "fieldKey": "Key",
+  "fieldValue": "Value",
+  "processEditTitle": "Edit Process",
+  "processAddTitle": "Add Process",
+  "processRunningNotice": "Process is running — changes will take effect on next start",
+  "processDeleteTitle": "Delete process?",
+  "processDeleteRunningTitle": "Stop and delete?",
+  "processDeleteBody": "Delete \"{name}\"? This cannot be undone.",
+  "@processDeleteBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "processDeleteRunningBody": "\"{name}\" is currently running. It will be stopped and the configuration deleted.",
+  "@processDeleteRunningBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "processDeleteRunningAction": "Stop and Delete",
+  "invalidRegex": "Invalid regex: {message}",
+  "@invalidRegex": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+
+  "editServiceGroupTooltip": "Edit service group",
+  "serviceStartTooltip": "Start services",
+  "serviceStopTooltip": "Stop services",
+  "serviceSummary": "{running}/{total} running · {state}",
+  "@serviceSummary": {
+    "placeholders": {
+      "running": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "serviceGridSummary": "{running}/{total} running",
+  "@serviceGridSummary": {
+    "placeholders": {
+      "running": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "serviceEditTitle": "Edit Service Group",
+  "serviceAddTitle": "Add Service Group",
+  "serviceDeleteTitle": "Delete service group?",
+  "serviceDeleteBody": "Remove \"{name}\" from TrayForge?\n\nThe services themselves keep running — TrayForge only stops managing them.",
+  "@serviceDeleteBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "serviceClearLog": "Clear log",
+  "serviceQuerying": "Querying services…",
+  "serviceNoActivity": "No activity yet",
+  "fieldServices": "Services *",
+  "fieldServicesHelper": "One Windows service name (or systemd unit) per line. They are started and stopped together.",
+  "fieldServicesHint": "Spooler\nMyService",
+  "servicesRequired": "At least one service is required",
+  "stopDependentsTitle": "Stop dependent services too",
+  "stopDependentsSubtitle": "When a stop fails because other services depend on a member, stop those dependants first.",
+  "serviceElevationNote": "Control operations need administrator rights: TrayForge asks for them once per start/stop. Status queries never prompt.",
+
+  "settingsTitle": "Settings",
+  "settingsOutputRefresh": "Output refresh (ms)",
+  "settingsOutputRefreshTip": "Lower = smoother, higher = less CPU",
+  "settingsHistoryLimit": "History limit",
+  "settingsHistoryLimitTip": "Max lines per process",
+  "settingsServicePoll": "Service poll (ms)",
+  "settingsServicePollTip": "How often service groups re-query their state. Status queries never prompt for elevation.",
+  "settingsAppliesImmediately": "Applies immediately",
+  "settingsTakesEffectOnStart": "Takes effect on next process start",
+  "settingsAutostart": "Launch at startup",
+  "settingsReload": "Reload config from disk",
+  "settingsReloadSubtitle": "Re-reads config.json and applies process and service changes without restarting. Processes removed from the file are stopped.",
+  "settingsReloaded": "Configuration reloaded",
+  "settingsReloadFailed": "config.json could not be read (a corrupted file is backed up next to it)",
+  "settingsLanguage": "Language",
+  "settingsLanguageSystem": "System default",
+
+  "stateStopped": "Stopped",
+  "stateStarting": "Starting",
+  "stateRunning": "Running",
+  "stateStopping": "Stopping",
+  "stateCrashed": "Crashed",
+  "stateCooldown": "Cooldown",
+  "serviceStateNotInstalled": "Not installed",
+  "serviceStatePaused": "Paused",
+  "serviceStateFailed": "Failed",
+  "serviceStateUnknown": "Unknown",
+
+  "validationEmptyName": "{kind} name must not be empty",
+  "@validationEmptyName": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "validationNameSeparator": "{kind} name \"{name}\" must not contain / or \\",
+  "@validationNameSeparator": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "validationNoServices": "Service group \"{name}\" needs at least one service",
+  "@validationNoServices": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "validationWebuiPattern": "Invalid webui_pattern regex: {message}",
+  "@validationWebuiPattern": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  }
+}

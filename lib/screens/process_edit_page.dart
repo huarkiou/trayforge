@@ -2,6 +2,8 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
+import 'package:trayforge/l10n/validation_text.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 
 /// Full-screen form for creating or editing a [ProcessConfig].
@@ -130,7 +132,10 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
       RegExp(pattern);
       setState(() => _regexError = null);
     } on FormatException catch (e) {
-      setState(() => _regexError = 'Invalid regex: ${e.message}');
+      setState(
+        () =>
+            _regexError = AppLocalizations.of(context).invalidRegex(e.message),
+      );
     }
   }
 
@@ -146,11 +151,12 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
   // ---- Multi-line cmd editor ----
 
   Future<void> _editCmdMultiLine() async {
+    final l10n = AppLocalizations.of(context);
     final controller = TextEditingController(text: _cmdController.text);
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edit Command'),
+        title: Text(l10n.editCommandTitle),
         content: SizedBox(
           width: 500,
           height: 240,
@@ -160,20 +166,20 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             expands: true,
             textAlignVertical: TextAlignVertical.top,
             style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-            decoration: const InputDecoration(
-              hintText: 'Enter command (Ctrl+Enter to save)',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              hintText: l10n.editCommandHint,
+              border: const OutlineInputBorder(),
             ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(null),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('Save'),
+            child: Text(l10n.save),
           ),
         ],
       ),
@@ -189,13 +195,17 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
     if (!_formKey.currentState!.validate()) return;
     if (_regexError != null) return;
 
+    final l10n = AppLocalizations.of(context);
     final config = _buildConfig();
     final vm = widget.settingsViewModel;
 
     final vmError = vm.validateUnit(config);
     if (vmError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(vmError), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(vmError.describe(l10n)),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
@@ -209,13 +219,9 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
     }
 
     if (wasRunning) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Process is running — changes will take effect on next start',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.processRunningNotice)));
     }
 
     Navigator.of(context).pop();
@@ -229,25 +235,30 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
   Future<void> _confirmDelete() async {
     final name = widget.initial?.name ?? '';
     final isRunning = widget.settingsViewModel.isRunning(name);
+    final l10n = AppLocalizations.of(context);
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(isRunning ? 'Stop and delete?' : 'Delete process?'),
+        title: Text(
+          isRunning ? l10n.processDeleteRunningTitle : l10n.processDeleteTitle,
+        ),
         content: Text(
           isRunning
-              ? '"$name" is currently running. It will be stopped and the configuration deleted.'
-              : 'Delete "$name"? This cannot be undone.',
+              ? l10n.processDeleteRunningBody(name)
+              : l10n.processDeleteBody(name),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: Text(isRunning ? 'Stop and Delete' : 'Delete'),
+            child: Text(
+              isRunning ? l10n.processDeleteRunningAction : l10n.delete,
+            ),
           ),
         ],
       ),
@@ -266,21 +277,24 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isEditing ? 'Edit Process' : 'Add Process'),
+        title: Text(
+          widget.isEditing ? l10n.processEditTitle : l10n.processAddTitle,
+        ),
         actions: [
           if (widget.isEditing)
             TextButton(
               onPressed: _confirmDelete,
               style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Delete'),
+              child: Text(l10n.delete),
             ),
           if (widget.isEditing)
-            TextButton(onPressed: _duplicate, child: const Text('Duplicate')),
+            TextButton(onPressed: _duplicate, child: Text(l10n.duplicate)),
           TextButton(
             onPressed: _regexError == null ? _save : null,
-            child: const Text('Save'),
+            child: Text(l10n.save),
           ),
         ],
       ),
@@ -291,17 +305,17 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
           children: [
             TextFormField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Name *',
-                helperText: 'Must not contain / or \\',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.fieldName,
+                helperText: l10n.fieldNameHelper,
+                border: const OutlineInputBorder(),
               ),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) {
-                  return 'Name is required';
+                  return l10n.nameRequired;
                 }
                 if (v.contains('/') || v.contains('\\')) {
-                  return 'Name must not contain / or \\';
+                  return l10n.nameSeparator;
                 }
                 return null;
               },
@@ -312,17 +326,17 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
                 Expanded(
                   child: TextFormField(
                     controller: _cwdController,
-                    decoration: const InputDecoration(
-                      labelText: 'Working Directory (cwd)',
-                      hintText: 'e.g. C:\\MyApp',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: l10n.fieldCwd,
+                      hintText: l10n.fieldCwdHint,
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.folder_open),
-                  tooltip: 'Browse…',
+                  tooltip: l10n.browseTooltip,
                   onPressed: _browseCwd,
                 ),
               ],
@@ -333,14 +347,14 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
                 Expanded(
                   child: TextFormField(
                     controller: _cmdController,
-                    decoration: const InputDecoration(
-                      labelText: 'Command *',
-                      hintText: 'e.g. myapp.exe --flag',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: l10n.fieldCommand,
+                      hintText: l10n.fieldCommandHint,
+                      border: const OutlineInputBorder(),
                     ),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) {
-                        return 'Command is required';
+                        return l10n.commandRequired;
                       }
                       return null;
                     },
@@ -349,7 +363,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
                 const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.open_in_full),
-                  tooltip: 'Multi-line editor…',
+                  tooltip: l10n.multiLineEditorTooltip,
                   onPressed: _editCmdMultiLine,
                 ),
               ],
@@ -357,10 +371,11 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               initialValue: _encoding,
-              decoration: const InputDecoration(
-                labelText: 'Encoding',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.fieldEncoding,
+                border: const OutlineInputBorder(),
               ),
+              // Encoding names are technical identifiers, not UI copy.
               items: const [
                 DropdownMenuItem(value: 'utf-8', child: Text('UTF-8')),
                 DropdownMenuItem(value: 'gbk', child: Text('GBK')),
@@ -372,42 +387,32 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             const SizedBox(height: 16),
             CheckboxListTile(
               value: _singleton,
-              title: const Text('Singleton'),
-              subtitle: const Text(
-                'Prevent starting if a process with the same name is already running',
-              ),
+              title: Text(l10n.singletonTitle),
+              subtitle: Text(l10n.singletonSubtitle),
               onChanged: (v) => setState(() => _singleton = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
             ),
             CheckboxListTile(
               value: _autostart,
-              title: const Text('Autostart'),
-              subtitle: const Text(
-                'Start this process automatically on launch',
-              ),
+              title: Text(l10n.autostartTitle),
+              subtitle: Text(l10n.autostartSubtitle),
               onChanged: (v) => setState(() => _autostart = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
             ),
             CheckboxListTile(
               value: _cleanupCwd,
-              title: const Text('Cleanup CWD'),
-              subtitle: const Text(
-                'Kill residual processes from the same working directory before start',
-              ),
+              title: Text(l10n.cleanupCwdTitle),
+              subtitle: Text(l10n.cleanupCwdSubtitle),
               onChanged: (v) => setState(() => _cleanupCwd = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
             ),
             CheckboxListTile(
               value: _elevated,
-              title: const Text('Run as administrator'),
-              subtitle: const Text(
-                'Launch with administrator rights. Windows shows a UAC prompt '
-                'only while TrayForge itself is not elevated; when it is, '
-                'output and env vars are captured like any other process.',
-              ),
+              title: Text(l10n.elevatedTitle),
+              subtitle: Text(l10n.elevatedSubtitle),
               onChanged: (v) => setState(() => _elevated = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
@@ -416,8 +421,8 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             TextFormField(
               controller: _webuiPatternController,
               decoration: InputDecoration(
-                labelText: 'WebUI Pattern',
-                hintText: r'e.g. WebUI started at (http://[\d.:]+)',
+                labelText: l10n.fieldWebuiPattern,
+                hintText: l10n.fieldWebuiPatternHint,
                 border: const OutlineInputBorder(),
                 errorText: _regexError,
               ),
@@ -426,35 +431,32 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _logFileController,
-              decoration: const InputDecoration(
-                labelText: 'Log File',
-                helperText:
-                    'Tail this file into the output pane (relative to cwd). '
-                    'The only output channel for elevated processes while '
-                    'TrayForge is not elevated.',
-                hintText: r'e.g. logs\app.log',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.fieldLogFile,
+                helperText: l10n.fieldLogFileHelper,
+                hintText: l10n.fieldLogFileHint,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _maxRestartsController,
-              decoration: const InputDecoration(
-                labelText: 'Max Restarts',
-                hintText: 'e.g. 3',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.fieldMaxRestarts,
+                hintText: l10n.fieldMaxRestartsHint,
+                border: const OutlineInputBorder(),
               ),
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),
             const SizedBox(height: 24),
             Text(
-              'Delete Before Start',
+              l10n.deleteBeforeStartTitle,
               style: Theme.of(context).textTheme.titleSmall,
             ),
             const SizedBox(height: 4),
             Text(
-              'One file path per line, relative to working directory',
+              l10n.deleteBeforeStartHelper,
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: Colors.grey),
@@ -462,9 +464,9 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             const SizedBox(height: 8),
             TextFormField(
               controller: _deleteBeforeStartController,
-              decoration: const InputDecoration(
-                hintText: 'temp.lock\ncache.dat',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                hintText: l10n.deleteBeforeStartHint,
+                border: const OutlineInputBorder(),
               ),
               maxLines: 4,
             ),
@@ -472,7 +474,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             Row(
               children: [
                 Text(
-                  'Environment Variables',
+                  l10n.envVarsTitle,
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const Spacer(),
@@ -480,7 +482,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
                   onPressed: () =>
                       setState(() => _envRows.add(_EnvRow('', ''))),
                   icon: const Icon(Icons.add),
-                  label: const Text('Add'),
+                  label: Text(l10n.add),
                 ),
               ],
             ),
@@ -494,9 +496,9 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
                     Expanded(
                       child: TextFormField(
                         controller: row.keyController,
-                        decoration: const InputDecoration(
-                          labelText: 'Key',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: l10n.fieldKey,
+                          border: const OutlineInputBorder(),
                           isDense: true,
                         ),
                       ),
@@ -505,16 +507,16 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
                     Expanded(
                       child: TextFormField(
                         controller: row.valueController,
-                        decoration: const InputDecoration(
-                          labelText: 'Value',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: l10n.fieldValue,
+                          border: const OutlineInputBorder(),
                           isDense: true,
                         ),
                       ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.remove_circle_outline),
-                      tooltip: 'Remove',
+                      tooltip: l10n.remove,
                       onPressed: () => setState(() {
                         row.dispose();
                         _envRows.removeAt(idx);

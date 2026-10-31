@@ -64,6 +64,97 @@ enum UnitKind {
   }
 }
 
+/// Why [ConfigStore.validate] rejected a unit.
+///
+/// The reason is what makes a rejection localizable: the persisted/English
+/// [ArgumentError.message] is a developer-facing fallback, while the UI formats
+/// the reason through `UnitValidationErrorText.describe`.
+enum UnitValidationReason {
+  /// The unit name is empty or whitespace-only.
+  emptyName,
+
+  /// The unit name contains `/` or `\`.
+  nameSeparator,
+
+  /// A service group has no services.
+  noServices,
+
+  /// A process `webui_pattern` is not a valid regular expression.
+  invalidWebuiPattern,
+}
+
+/// A rejected unit configuration.
+///
+/// Still an [ArgumentError] — every existing `on ArgumentError` handler and
+/// `throwsArgumentError` expectation keeps working — but it carries the
+/// structured reason the UI needs to render the message in the user's language.
+class UnitValidationError extends ArgumentError {
+  /// What was wrong.
+  final UnitValidationReason reason;
+
+  /// The kind of unit that was rejected, when the reason is about the name.
+  final UnitKind? unitKind;
+
+  /// The offending name, when the message quotes it.
+  ///
+  /// Named `unitName` because [ArgumentError] already owns a `name` field (the
+  /// invalid argument's identifier).
+  final String? unitName;
+
+  /// Parser detail (the offending regex message), when there is one.
+  final String? detail;
+
+  UnitValidationError._(
+    this.reason, {
+    this.unitKind,
+    this.unitName,
+    this.detail,
+  }) : super(_englishMessage(reason, unitKind, unitName, detail));
+
+  /// The unit name is empty or whitespace-only.
+  factory UnitValidationError.emptyName(UnitKind kind) =>
+      UnitValidationError._(UnitValidationReason.emptyName, unitKind: kind);
+
+  /// The unit name contains `/` or `\`.
+  factory UnitValidationError.nameSeparator(UnitKind kind, String name) =>
+      UnitValidationError._(
+        UnitValidationReason.nameSeparator,
+        unitKind: kind,
+        unitName: name,
+      );
+
+  /// A service group lists no services.
+  factory UnitValidationError.noServices(String name) =>
+      UnitValidationError._(UnitValidationReason.noServices, unitName: name);
+
+  /// A process `webui_pattern` does not compile.
+  factory UnitValidationError.invalidWebuiPattern(String detail) =>
+      UnitValidationError._(
+        UnitValidationReason.invalidWebuiPattern,
+        detail: detail,
+      );
+
+  /// The English message, kept byte-identical to the pre-localization text.
+  static String _englishMessage(
+    UnitValidationReason reason,
+    UnitKind? unitKind,
+    String? name,
+    String? detail,
+  ) {
+    final what = (unitKind ?? UnitKind.process).label;
+    switch (reason) {
+      case UnitValidationReason.emptyName:
+        return '$what name must not be empty';
+      case UnitValidationReason.nameSeparator:
+        return '$what name "$name" must not contain / or \\';
+      case UnitValidationReason.noServices:
+        return 'Service group "$name" needs at least one service';
+      case UnitValidationReason.invalidWebuiPattern:
+        return 'Invalid webui_pattern regex: $detail';
+    }
+  }
+}
+
 /// One dashboard unit: whatever TrayForge shows as a single card and manages
 /// as one thing.
 ///
@@ -319,6 +410,17 @@ class AppConfig {
 
   final DashboardLayout dashboardLayout;
 
+  /// The UI language, as a language tag of a shipped locale (`en`, `zh`), or
+  /// `null` to follow the operating system.
+  ///
+  /// Absent from a config that predates localization, and written only once the
+  /// user picks a language. An unsupported or malformed tag is not an error: it
+  /// is treated like `null` by the resolution in `lib/l10n/locale_resolution.dart`.
+  /// The model stores the tag verbatim; `SettingsViewModel` normalizes it on
+  /// read, so the next save rewrites a hand-edited `zh-CN` as `zh` and drops an
+  /// unsupported one.
+  final String? language;
+
   /// Every managed unit in dashboard order: processes and service groups,
   /// interleaved however the user arranged them.
   ///
@@ -331,6 +433,7 @@ class AppConfig {
     this.outputRefreshMs = 500,
     this.servicePollMs = 5000,
     this.dashboardLayout = DashboardLayout.list,
+    this.language,
     this.units = const [],
   });
 
@@ -375,6 +478,7 @@ class AppConfig {
     'output_refresh_ms': outputRefreshMs,
     'service_poll_ms': servicePollMs,
     'dashboard_layout': dashboardLayout.name,
+    if (language != null) 'language': language,
     'units': units
         .map((unit) => {'kind': unit.kind.jsonValue, ...unit.toJson()})
         .toList(),
@@ -386,9 +490,18 @@ class AppConfig {
       outputRefreshMs: json['output_refresh_ms'] as int? ?? 500,
       servicePollMs: json['service_poll_ms'] as int? ?? 5000,
       dashboardLayout: _parseDashboardLayout(json['dashboard_layout']),
+      language: _parseLanguage(json['language']),
       units: _parseUnits(json),
     );
   }
+
+  /// Parses the language tag, tolerating any other JSON type.
+  ///
+  /// A non-string `language` is ignored rather than treated as a corrupted
+  /// config: the field is cosmetic, and a typo must not cost the user their
+  /// units.
+  static String? _parseLanguage(dynamic value) =>
+      value is String && value.trim().isNotEmpty ? value : null;
 
   /// Parses the ordered unit list, migrating the pre-`units` schema.
   ///

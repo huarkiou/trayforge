@@ -8,6 +8,8 @@ import 'package:trayforge/screens/process_detail_screen.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
 
+import '../helpers/localized_app.dart';
+
 /// A fake ProcessManager that provides state and output streams on demand.
 class _FakeProcessManager extends Fake implements ProcessManager {
   final Map<String, StreamController<ProcState>> _stateControllers = {};
@@ -151,7 +153,7 @@ void main() {
     });
 
     Widget buildPage() {
-      return MaterialApp(home: ProcessDetailPage(viewModel: vm));
+      return localizedApp(home: ProcessDetailPage(viewModel: vm));
     }
 
     // Mirrors _ProcessDetailPageState._followThreshold — the production
@@ -175,7 +177,7 @@ void main() {
         fake.emitOutput('test-svc', 'line $i');
       }
       await tester.pumpWidget(
-        MaterialApp(home: ProcessDetailPage(viewModel: vm)),
+        localizedApp(home: ProcessDetailPage(viewModel: vm)),
       );
       await tester.pump();
 
@@ -289,7 +291,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(home: ProcessDetailPage(viewModel: vm2)),
+        localizedApp(home: ProcessDetailPage(viewModel: vm2)),
       );
 
       vm2.toggle();
@@ -552,7 +554,7 @@ void main() {
 
       // Navigate away and back (simulated by rebuilding with same vm).
       await tester.pumpWidget(
-        MaterialApp(home: const Scaffold(body: Text('other page'))),
+        localizedApp(home: const Scaffold(body: Text('other page'))),
       );
       await tester.pump();
 
@@ -574,7 +576,7 @@ void main() {
 
     testWidgets('shows edit icon when onEditTap is provided', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        localizedApp(
           home: ProcessDetailPage(viewModel: vm, onEditTap: () {}),
         ),
       );
@@ -586,7 +588,7 @@ void main() {
     testWidgets('tapping edit icon calls onEditTap', (tester) async {
       var editTapped = false;
       await tester.pumpWidget(
-        MaterialApp(
+        localizedApp(
           home: ProcessDetailPage(
             viewModel: vm,
             onEditTap: () => editTapped = true,

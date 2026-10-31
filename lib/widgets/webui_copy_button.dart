@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/widgets/copy_snackbar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -28,7 +29,7 @@ class WebUiCopyButton extends StatelessWidget {
       },
       child: IconButton(
         icon: Icon(Icons.content_copy, size: compact ? 20 : null),
-        tooltip: 'Copy WebUI URL (right-click: open in browser)',
+        tooltip: AppLocalizations.of(context).copyWebuiTooltip,
         onPressed: () {
           Clipboard.setData(ClipboardData(text: url.toString()));
           showCopySnackBar(context);

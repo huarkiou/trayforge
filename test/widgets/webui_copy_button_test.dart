@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trayforge/widgets/webui_copy_button.dart';
 
+import '../helpers/localized_app.dart';
+
 void main() {
   Widget buildButton({bool compact = false}) {
-    return MaterialApp(
+    return localizedApp(
       home: Scaffold(
         body: WebUiCopyButton(
           url: Uri.parse('http://127.0.0.1:8080'),

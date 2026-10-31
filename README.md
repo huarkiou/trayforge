@@ -40,6 +40,9 @@ auto-start, auto-restart on crash, and colour-coded tray icon at a glance.
   file show up in the output pane. It is the only output channel for elevated
   processes while TrayForge is not elevated, and a generic second source
   otherwise.
+- **English and Simplified Chinese** — the UI follows the OS language and can be
+  overridden in Settings (`language` in `config.json`), applied immediately to
+  the pages, the window title and the tray menu.
 - **Native service groups** — manage Windows services (or systemd units) directly:
   live state from the OS, one UAC prompt per start/stop of the whole group,
   structured errors, no shell script in between. See
@@ -193,6 +196,7 @@ child, and loses the exit code.
 | `output_refresh_ms`    | `int`    | `500`    | Interval (ms) for batching output line flushes.  |
 | `service_poll_ms`      | `int`    | `5000`   | How often service groups re-query the OS (1 s – 1 h). |
 | `dashboard_layout`     | `string` | `list`   | Dashboard arrangement: `list` (wide cards) or `grid` (compact square cards). |
+| `language`             | `string` | *(unset)* | UI language: `en` or `zh`. Unset (or an unsupported tag) follows the OS language; a country variant like `zh-CN` is accepted and read as `zh`. |
 
 ### Service groups
 

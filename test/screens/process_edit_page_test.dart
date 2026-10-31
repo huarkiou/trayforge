@@ -9,6 +9,8 @@ import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 
+import '../helpers/localized_app.dart';
+
 /// Fake [ProcessManager] that reports a single named process as running.
 class _RunningFakePM extends Fake implements ProcessManager {
   final String _runningName;
@@ -72,7 +74,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        localizedApp(
           home: ProcessEditPage(
             settingsViewModel: vm,
             initial: config.processes[0],
@@ -115,7 +117,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        localizedApp(
           home: ProcessEditPage(
             settingsViewModel: vm,
             initial: config.processes[0],

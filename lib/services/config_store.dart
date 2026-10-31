@@ -68,13 +68,16 @@ class ConfigStore {
 
   /// Validates a single [UnitConfig], applying the rules of its kind.
   ///
-  /// Throws [ArgumentError] if:
+  /// Throws [UnitValidationError] (an [ArgumentError]) if:
   /// - the unit name is empty or whitespace-only
   /// - the unit name contains `/` or `\`
   /// - a [ProcessConfig.webuiPattern] is non-null and not a valid regex
   /// - a [ServiceConfig] has no services
+  ///
+  /// The error carries the structured reason, so the UI can show the message in
+  /// the user's language instead of the English [ArgumentError.message].
   void validate(UnitConfig unit) {
-    _validateName(unit.name, what: unit.kind.label);
+    _validateName(unit.name, kind: unit.kind);
 
     switch (unit) {
       case ProcessConfig(:final webuiPattern):
@@ -82,25 +85,23 @@ class ConfigStore {
         try {
           RegExp(webuiPattern);
         } on FormatException catch (e) {
-          throw ArgumentError('Invalid webui_pattern regex: ${e.message}');
+          throw UnitValidationError.invalidWebuiPattern(e.message);
         }
       case ServiceConfig(:final services):
         if (services.isEmpty) {
-          throw ArgumentError(
-            'Service group "${unit.name}" needs at least one service',
-          );
+          throw UnitValidationError.noServices(unit.name);
         }
     }
   }
 
   /// The name rules shared by every managed kind.
-  void _validateName(String name, {required String what}) {
+  void _validateName(String name, {required UnitKind kind}) {
     if (name.trim().isEmpty) {
-      throw ArgumentError('$what name must not be empty');
+      throw UnitValidationError.emptyName(kind);
     }
 
     if (name.contains('/') || name.contains('\\')) {
-      throw ArgumentError('$what name "$name" must not contain / or \\');
+      throw UnitValidationError.nameSeparator(kind, name);
     }
   }
 

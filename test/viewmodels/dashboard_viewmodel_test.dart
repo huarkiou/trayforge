@@ -6,6 +6,7 @@ import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
 
+import '../helpers/localized_app.dart';
 import '../helpers/service_fakes.dart';
 import '../helpers/test_mocks.dart';
 
@@ -215,10 +216,20 @@ void main() {
     });
 
     test('windowTitle marks an elevated TrayForge', () {
-      expect(DashboardViewModel.windowTitle(elevated: false), 'trayforge');
       expect(
-        DashboardViewModel.windowTitle(elevated: true),
+        DashboardViewModel.windowTitle(elevated: false, l10n: enStrings),
+        'trayforge',
+      );
+      expect(
+        DashboardViewModel.windowTitle(elevated: true, l10n: enStrings),
         'trayforge (Administrator)',
+      );
+    });
+
+    test('windowTitle marks elevation in Chinese too', () {
+      expect(
+        DashboardViewModel.windowTitle(elevated: true, l10n: zhStrings),
+        'trayforge（管理员）',
       );
     });
 

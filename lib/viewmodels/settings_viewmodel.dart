@@ -1,9 +1,12 @@
 // ignore_for_file: prefer_initializing_formals
 
 import 'dart:async';
+import 'dart:ui' show Locale;
 
 import 'package:flutter/foundation.dart';
 import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
+import 'package:trayforge/l10n/locale_resolution.dart';
 import 'package:trayforge/services/autostart.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
@@ -31,6 +34,11 @@ class SettingsViewModel extends ChangeNotifier {
   int _outputHistoryLimit = 1000;
   int _servicePollMs = 5000;
   DashboardLayout _dashboardLayout = DashboardLayout.list;
+  String? _language;
+
+  /// The resolved locale, published for `MaterialApp`.
+  final ValueNotifier<Locale?> _locale = ValueNotifier<Locale?>(null);
+
   StreamSubscription<void>? _configSub;
 
   SettingsViewModel({
@@ -66,6 +74,48 @@ class SettingsViewModel extends ChangeNotifier {
 
   /// How often service groups re-query the OS, in milliseconds.
   int get servicePollMs => _servicePollMs;
+
+  /// The persisted language tag (`en`, `zh`), or `null` to follow the OS.
+  ///
+  /// Normalized on read and on write, so the value is always a tag of a shipped
+  /// locale or `null` — a hand-edited `zh-CN` reads back as `zh`, an unsupported
+  /// `ja` reads back as `null`.
+  String? get language => _language;
+
+  /// The locale to hand to `MaterialApp`, or `null` to follow the OS.
+  Locale? get locale => _locale.value;
+
+  /// A listenable that fires only when the language changes.
+  ///
+  /// The settings notifier fires for every setting (the numeric steppers
+  /// included), but `main` only needs to rebuild the `MaterialApp` when the
+  /// locale moved — rebuilding it on a stepper edit would churn the whole
+  /// widget tree.
+  ValueListenable<Locale?> get localeListenable => _locale;
+
+  /// The resolved strings for code outside the widget tree (tray, window
+  /// title). Inside a widget, use `AppLocalizations.of(context)`.
+  AppLocalizations get localizations => localizationsFor(_language);
+
+  /// Updates the UI language and persists it.
+  ///
+  /// Passing `null` (the "System default" entry) clears the override. The
+  /// change takes effect immediately: [localeListenable] rebuilds the
+  /// `MaterialApp`, and `main` re-sets the window title and the tray menu.
+  void setLanguage(String? tag) {
+    _applyLanguage(tag);
+    _persistWithoutReload();
+  }
+
+  /// Normalizes [tag] to a shipped tag, stores it, and publishes the locale.
+  ///
+  /// One place for the read path and the write path, so the getter and the
+  /// listenable can never disagree.
+  void _applyLanguage(String? tag) {
+    final locale = parseLanguageTag(tag);
+    _language = locale?.toLanguageTag();
+    _locale.value = locale;
+  }
 
   /// Updates [servicePollMs] and persists.
   void setServicePollMs(int value) {
@@ -215,13 +265,15 @@ class SettingsViewModel extends ChangeNotifier {
 
   /// Validates a [UnitConfig] using [ConfigStore.validate].
   ///
-  /// Returns `null` on success, or an error message string on failure.
-  String? validateUnit(UnitConfig unit) {
+  /// Returns `null` on success, or the rejection on failure. The edit pages
+  /// format it with `describe(AppLocalizations)`, so the message language
+  /// follows the UI.
+  UnitValidationError? validateUnit(UnitConfig unit) {
     try {
       _configStore.validate(unit);
       return null;
-    } on ArgumentError catch (e) {
-      return e.message;
+    } on UnitValidationError catch (e) {
+      return e;
     }
   }
 
@@ -233,6 +285,7 @@ class SettingsViewModel extends ChangeNotifier {
     _outputHistoryLimit = config?.outputHistoryLimit ?? 1000;
     _servicePollMs = config?.servicePollMs ?? 5000;
     _dashboardLayout = config?.dashboardLayout ?? DashboardLayout.list;
+    _applyLanguage(config?.language);
     notifyListeners();
   }
 
@@ -247,6 +300,7 @@ class SettingsViewModel extends ChangeNotifier {
     outputRefreshMs: _outputRefreshMs,
     servicePollMs: _servicePollMs,
     dashboardLayout: _dashboardLayout,
+    language: _language,
     units: List<UnitConfig>.from(_units),
   );
 
@@ -296,6 +350,7 @@ class SettingsViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _configSub?.cancel();
+    _locale.dispose();
     super.dispose();
   }
 }

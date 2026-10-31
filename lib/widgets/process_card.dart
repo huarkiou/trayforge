@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
 import 'package:trayforge/widgets/edit_icon_button.dart';
 import 'package:trayforge/widgets/status_dot.dart';
@@ -94,7 +95,10 @@ class ProcessCardActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final editButton = onEditTap != null
-        ? EditIconButton(onPressed: onEditTap!, tooltip: 'Edit process')
+        ? EditIconButton(
+            onPressed: onEditTap!,
+            tooltip: AppLocalizations.of(context).editProcessTooltip,
+          )
         : null;
 
     return Row(
@@ -175,7 +179,7 @@ class ProcessGridCard extends StatelessWidget {
                   _OutputPreview(
                     viewModel: viewModel,
                     maxLines: 5,
-                    emptyHint: null,
+                    showEmptyHint: false,
                   ),
                   const Spacer(),
                   Row(
@@ -199,26 +203,27 @@ class ProcessGridCard extends StatelessWidget {
 
 /// Monospace output preview showing the last [maxLines] lines.
 ///
-/// Shows [emptyHint] when there is no output; pass `null` to render
-/// nothing instead (used by the compact grid cards).
+/// Shows the localized "No output yet" hint when there is no output; pass
+/// [showEmptyHint] `false` to render nothing instead (used by the compact grid
+/// cards).
 class _OutputPreview extends StatelessWidget {
   final ProcessViewModel viewModel;
   final int maxLines;
-  final String? emptyHint;
+  final bool showEmptyHint;
 
   const _OutputPreview({
     required this.viewModel,
     this.maxLines = ProcessCard.previewLines,
-    this.emptyHint = 'No output yet',
+    this.showEmptyHint = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final lines = viewModel.outputLines;
     if (lines.isEmpty) {
-      if (emptyHint == null) return const SizedBox.shrink();
+      if (!showEmptyHint) return const SizedBox.shrink();
       return Text(
-        emptyHint!,
+        AppLocalizations.of(context).noOutputYet,
         style: const TextStyle(
           fontFamily: 'monospace',
           fontSize: 12,

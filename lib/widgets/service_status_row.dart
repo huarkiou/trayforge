@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:trayforge/foundation/service_status.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
+import 'package:trayforge/l10n/state_labels.dart';
 
 /// Colour for one service's state label.
 Color serviceStateColor(ServiceState state) {
@@ -51,7 +53,10 @@ class ServiceStatusRow extends StatelessWidget {
                 : SelectableText(status.name, style: nameStyle),
           ),
           const SizedBox(width: 8),
-          Text(status.state.label, style: labelStyle),
+          Text(
+            status.state.localizedLabel(AppLocalizations.of(context)),
+            style: labelStyle,
+          ),
         ],
       ),
     );

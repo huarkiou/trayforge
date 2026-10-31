@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
+import 'package:trayforge/l10n/state_labels.dart';
 
 /// Colour used for [ProcState] in [StatusDot] and status labels.
 ///
@@ -56,7 +58,7 @@ class StateLabel extends StatelessWidget {
         StatusDot(state: state),
         const SizedBox(width: 6),
         Text(
-          state.label,
+          state.localizedLabel(AppLocalizations.of(context)),
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w500,

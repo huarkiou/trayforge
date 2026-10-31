@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
 
 /// Start/stop toggle with spinner during transitions.
@@ -23,12 +24,13 @@ class ToggleButton extends StatelessWidget {
     }
 
     final isRunning = viewModel.state.isActive;
+    final l10n = AppLocalizations.of(context);
     return IconButton(
       icon: Icon(
         isRunning ? Icons.stop_circle_outlined : Icons.play_circle_outlined,
         color: isRunning ? Colors.red : Colors.green,
       ),
-      tooltip: isRunning ? 'Stop' : 'Start',
+      tooltip: isRunning ? l10n.toggleStop : l10n.toggleStart,
       onPressed: () => viewModel.toggle(),
       visualDensity: visualDensity,
     );

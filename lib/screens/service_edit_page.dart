@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
+import 'package:trayforge/l10n/validation_text.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 
 /// Add/edit form for one service group.
@@ -64,10 +66,14 @@ class _ServiceEditPageState extends State<ServiceEditPage> {
     final config = _buildConfig();
     final error = widget.settingsViewModel.validateUnit(config);
     if (error != null) {
-      // Surface the rejection instead of letting ConfigStore throw.
+      // Surface the rejection instead of letting ConfigStore throw, in the UI
+      // language rather than the English ArgumentError message.
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(error.describe(AppLocalizations.of(context))),
+            backgroundColor: Colors.red,
+          ),
         );
       }
       return;
@@ -85,23 +91,20 @@ class _ServiceEditPageState extends State<ServiceEditPage> {
     final index = widget.editIndex;
     if (index == null) return;
 
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete service group?'),
-        content: Text(
-          'Remove "${widget.initial?.name}" from TrayForge?\n\n'
-          'The services themselves keep running — TrayForge only stops '
-          'managing them.',
-        ),
+        title: Text(l10n.serviceDeleteTitle),
+        content: Text(l10n.serviceDeleteBody(widget.initial?.name ?? '')),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -114,15 +117,16 @@ class _ServiceEditPageState extends State<ServiceEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.isEditing ? 'Edit Service Group' : 'Add Service Group',
+          widget.isEditing ? l10n.serviceEditTitle : l10n.serviceAddTitle,
         ),
         actions: [
           if (widget.isEditing)
-            TextButton(onPressed: _confirmDelete, child: const Text('Delete')),
-          TextButton(onPressed: _save, child: const Text('Save')),
+            TextButton(onPressed: _confirmDelete, child: Text(l10n.delete)),
+          TextButton(onPressed: _save, child: Text(l10n.save)),
         ],
       ),
       body: Form(
@@ -132,16 +136,16 @@ class _ServiceEditPageState extends State<ServiceEditPage> {
           children: [
             TextFormField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Name *',
-                helperText: 'Must not contain / or \\',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.fieldName,
+                helperText: l10n.fieldNameHelper,
+                border: const OutlineInputBorder(),
               ),
               validator: (value) {
                 final name = value?.trim() ?? '';
-                if (name.isEmpty) return 'Name is required';
+                if (name.isEmpty) return l10n.nameRequired;
                 if (name.contains('/') || name.contains('\\')) {
-                  return 'Name must not contain / or \\';
+                  return l10n.nameSeparator;
                 }
                 return null;
               },
@@ -151,34 +155,27 @@ class _ServiceEditPageState extends State<ServiceEditPage> {
               controller: _servicesController,
               minLines: 4,
               maxLines: 10,
-              decoration: const InputDecoration(
-                labelText: 'Services *',
-                helperText:
-                    'One Windows service name (or systemd unit) per line. '
-                    'They are started and stopped together.',
-                hintText: 'Spooler\nMyService',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.fieldServices,
+                helperText: l10n.fieldServicesHelper,
+                hintText: l10n.fieldServicesHint,
+                border: const OutlineInputBorder(),
                 alignLabelWithHint: true,
               ),
-              validator: (_) => _serviceNames.isEmpty
-                  ? 'At least one service is required'
-                  : null,
+              validator: (_) =>
+                  _serviceNames.isEmpty ? l10n.servicesRequired : null,
             ),
             const SizedBox(height: 16),
             SwitchListTile(
               value: _stopDependents,
-              title: const Text('Stop dependent services too'),
-              subtitle: const Text(
-                'When a stop fails because other services depend on a member, '
-                'stop those dependants first.',
-              ),
+              title: Text(l10n.stopDependentsTitle),
+              subtitle: Text(l10n.stopDependentsSubtitle),
               onChanged: (value) => setState(() => _stopDependents = value),
               contentPadding: EdgeInsets.zero,
             ),
             const SizedBox(height: 24),
             Text(
-              'Control operations need administrator rights: TrayForge asks '
-              'for them once per start/stop. Status queries never prompt.',
+              l10n.serviceElevationNote,
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: Colors.grey),

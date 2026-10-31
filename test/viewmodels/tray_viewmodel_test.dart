@@ -8,6 +8,7 @@ import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/services/service_manager.dart';
 import 'package:trayforge/viewmodels/tray_viewmodel.dart';
 
+import '../helpers/localized_app.dart';
 import '../helpers/service_fakes.dart';
 import '../helpers/test_mocks.dart';
 
@@ -81,7 +82,7 @@ void main() {
       mockRunner.nextHandle = MockProcessHandle(pid: 1000);
       final vm = createTrayVm();
 
-      final item = vm.buildMenu().findByKey('proc:test-svc')!;
+      final item = vm.buildMenu(enStrings).findByKey('proc:test-svc')!;
       vm.handleMenuAction(item.key!);
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -106,7 +107,7 @@ void main() {
     test('menu lists a service group and toggles it', () async {
       final vm = createTrayVm(withServices: serviceManager);
 
-      final before = vm.buildMenu().findByKey('svc:Licenses')!;
+      final before = vm.buildMenu(enStrings).findByKey('svc:Licenses')!;
       expect(before.label, isNot(contains('\u2713')));
 
       vm.handleMenuAction(before.key!);
@@ -116,7 +117,7 @@ void main() {
       expect(host.startCalls, isNotEmpty);
 
       // The menu label follows the live state.
-      final after = vm.buildMenu().findByKey('svc:Licenses')!;
+      final after = vm.buildMenu(enStrings).findByKey('svc:Licenses')!;
       expect(after.label, contains('\u2713'));
     });
 
@@ -124,7 +125,7 @@ void main() {
       var notifications = 0;
       final vm = createTrayVm(withServices: serviceManager);
       vm.addListener(() => notifications++);
-      expect(vm.buildMenu().findByKey('svc:Added'), isNull);
+      expect(vm.buildMenu(enStrings).findByKey('svc:Added'), isNull);
 
       final onDisk = configStore.load()!;
       final updated = AppConfig(
@@ -142,12 +143,12 @@ void main() {
         greaterThan(0),
         reason: 'the tray still listens for config reloads',
       );
-      expect(vm.buildMenu().findByKey('svc:Added'), isNotNull);
+      expect(vm.buildMenu(enStrings).findByKey('svc:Added'), isNotNull);
     });
 
     test('menu follows the unit order across kinds', () async {
       final vm = createTrayVm(withServices: serviceManager);
-      final items = vm.buildMenu().items;
+      final items = vm.buildMenu(enStrings).items;
       final keys = items.map((item) => item.key).toList();
 
       // Config order is process, then service group; a separator marks the
@@ -178,7 +179,7 @@ void main() {
       );
       final vm = createTrayVm(withServices: serviceManager);
 
-      final items = vm.buildMenu().items;
+      final items = vm.buildMenu(enStrings).items;
       expect(items.map((item) => item.key), [
         'proc:one',
         'proc:two',
@@ -206,7 +207,7 @@ void main() {
       );
       await serviceManager.reloadConfig(configStore.load()!);
 
-      final items = vm.buildMenu().items;
+      final items = vm.buildMenu(enStrings).items;
       expect(items.map((item) => item.key), [
         'svc:Licenses',
         null,
@@ -220,6 +221,38 @@ void main() {
       // Still one kind change, even though the kinds swapped places.
       final separators = items.where((item) => item.key == null).length;
       expect(separators, 2);
+    });
+
+    test('the fixed items follow the caller language', () async {
+      final vm = createTrayVm(withServices: serviceManager);
+
+      final labels = vm
+          .buildMenu(zhStrings)
+          .items
+          .where((item) => item.key != null)
+          .map((item) => item.label)
+          .toList();
+
+      expect(labels, contains('重新加载设置'));
+      expect(labels, contains('仪表盘'));
+      expect(labels, contains('退出'));
+      // Unit names are configured data, not UI copy: they stay verbatim.
+      expect(labels, contains('   test-svc'));
+    });
+
+    test('the fixed items keep their English labels', () async {
+      final vm = createTrayVm(withServices: serviceManager);
+
+      final labels = vm
+          .buildMenu(enStrings)
+          .items
+          .where((item) => item.key != null)
+          .map((item) => item.label)
+          .toList();
+
+      expect(labels, contains('Reload Settings'));
+      expect(labels, contains('Dashboard'));
+      expect(labels, contains('Exit'));
     });
   });
 }

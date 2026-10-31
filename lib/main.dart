@@ -9,6 +9,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:trayforge/foundation/logger.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/foundation/process_elevation_win32.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/screens/dashboard_screen.dart';
 import 'package:trayforge/services/autostart.dart';
 import 'package:trayforge/services/config_store.dart';
@@ -34,6 +35,18 @@ late final DashboardViewModel _dashboardViewModel;
 late final Autostart _autostart;
 late final SettingsViewModel _settingsViewModel;
 Timer? _wakeTimer;
+
+/// Whether TrayForge itself runs with an elevated token (Windows).
+///
+/// Read once at startup; it decides the window-title suffix and is carried into
+/// the language-change handler so a language switch keeps the marker.
+bool _elevated = false;
+
+/// The language tag the tray and window title were last built with.
+///
+/// `SettingsViewModel` notifies on every setting (the numeric steppers
+/// included), but only a language change repaints the non-widget surfaces.
+String? _lastLanguage;
 
 /// Whether a system tray (StatusNotifierWatcher on Linux) is available.
 ///
@@ -63,12 +76,6 @@ Future<void> main(List<String> args) async {
   await windowManager.ensureInitialized();
 
   // Configure window properties without showing it -- tray-only startup.
-  // The title carries "(Administrator)" when this process itself is elevated,
-  // so the deployment's privilege level is visible at a glance.
-  final windowTitle = DashboardViewModel.windowTitle(
-    elevated: isCurrentProcessElevated(),
-  );
-  await windowManager.setTitle(windowTitle);
   await windowManager.setSize(const Size(800, 600));
   await windowManager.center();
 
@@ -129,11 +136,18 @@ Future<void> main(List<String> args) async {
 
   // Tray state changes -> update icon and menu.
   _trayViewModel.addListener(_onTrayStateChanged);
+  // A language change repaints the window title and the tray menu; every other
+  // settings change is ignored by the tag guard inside the handler.
+  _lastLanguage = _settingsViewModel.language;
+  _settingsViewModel.addListener(_onLanguageChanged);
 
   // ---- Window setup ----
 
+  // The title carries "(Administrator)" when this process itself is elevated,
+  // so the deployment's privilege level is visible at a glance.
+  _elevated = isCurrentProcessElevated();
   await windowManager.setPreventClose(true);
-  await windowManager.setTitle(windowTitle);
+  await _applyWindowTitle(_settingsViewModel.localizations);
 
   // Set window icon (reused from Python trayforge).
   try {
@@ -154,7 +168,7 @@ Future<void> main(List<String> args) async {
 
   await DesktopTray.instance.setIcon(_trayViewModel.iconPath);
   await DesktopTray.instance.setToolTip('trayforge');
-  await DesktopTray.instance.setContextMenu(_trayViewModel.buildMenu());
+  await _applyTrayMenu(_settingsViewModel.localizations);
   DesktopTray.instance.addListener(_AppTrayListener());
 
   // ---- Window visibility ----
@@ -215,6 +229,7 @@ Future<void> _exitApp() async {
   }
 
   _trayViewModel.removeListener(_onTrayStateChanged);
+  _settingsViewModel.removeListener(_onLanguageChanged);
   _trayViewModel.dispose();
   _dashboardViewModel.dispose();
   _settingsViewModel.dispose();
@@ -236,12 +251,52 @@ Future<void> _exitApp() async {
 
 void _onTrayStateChanged() {
   // Fire-and-forget: update tray icon and menu when state changes.
-  DesktopTray.instance
-      .setIcon(_trayViewModel.iconPath)
-      .catchError((e) => _logger.log('Tray setIcon failed: $e'));
-  DesktopTray.instance
-      .setContextMenu(_trayViewModel.buildMenu())
-      .catchError((e) => _logger.log('Tray setContextMenu failed: $e'));
+  unawaited(_applyTrayIcon());
+  unawaited(_applyTrayMenu(_settingsViewModel.localizations));
+}
+
+/// Repaints the two surfaces that live outside the widget tree when the UI
+/// language changed: the window title and the tray context menu.
+///
+/// [SettingsViewModel] notifies on every setting, so the tag guard keeps a
+/// stepper edit from rebuilding them.
+void _onLanguageChanged() {
+  final language = _settingsViewModel.language;
+  if (language == _lastLanguage) return;
+  _lastLanguage = language;
+
+  final l10n = _settingsViewModel.localizations;
+  unawaited(_applyWindowTitle(l10n));
+  unawaited(_applyTrayMenu(l10n));
+}
+
+/// Sets the native window title for [l10n], logging instead of throwing.
+Future<void> _applyWindowTitle(AppLocalizations l10n) async {
+  try {
+    await windowManager.setTitle(
+      DashboardViewModel.windowTitle(elevated: _elevated, l10n: l10n),
+    );
+  } catch (e) {
+    _logger.log('Window setTitle failed: $e');
+  }
+}
+
+/// Rebuilds the tray context menu for [l10n], logging instead of throwing.
+Future<void> _applyTrayMenu(AppLocalizations l10n) async {
+  try {
+    await DesktopTray.instance.setContextMenu(_trayViewModel.buildMenu(l10n));
+  } catch (e) {
+    _logger.log('Tray setContextMenu failed: $e');
+  }
+}
+
+/// Repaints the tray icon for the current unit states.
+Future<void> _applyTrayIcon() async {
+  try {
+    await DesktopTray.instance.setIcon(_trayViewModel.iconPath);
+  } catch (e) {
+    _logger.log('Tray setIcon failed: $e');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -305,14 +360,22 @@ class _trayforgeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: DashboardViewModel.appTitle,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey),
-      ),
-      home: DashboardScreen(
-        viewModel: _dashboardViewModel,
-        settingsViewModel: _settingsViewModel,
+    // Follows the locale only: a stepper edit notifies the settings view model
+    // but must not rebuild the MaterialApp (and with it the whole route).
+    return ValueListenableBuilder<Locale?>(
+      valueListenable: _settingsViewModel.localeListenable,
+      builder: (context, locale, _) => MaterialApp(
+        title: DashboardViewModel.appTitle,
+        locale: locale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey),
+        ),
+        home: DashboardScreen(
+          viewModel: _dashboardViewModel,
+          settingsViewModel: _settingsViewModel,
+        ),
       ),
     );
   }

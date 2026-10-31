@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
+import 'package:trayforge/l10n/state_labels.dart';
 import 'package:trayforge/viewmodels/service_viewmodel.dart';
 import 'package:trayforge/widgets/edit_icon_button.dart';
 import 'package:trayforge/widgets/service_status_row.dart';
@@ -43,6 +44,7 @@ class ServiceToggleButton extends StatelessWidget {
         // member up → stop all", which is not the same as the aggregate state
         // being active (a crashed group with a member running still stops).
         final isUp = viewModel.isUp;
+        final l10n = AppLocalizations.of(context);
         return IconButton(
           icon: Icon(
             isUp ? Icons.stop_circle_outlined : Icons.play_circle_outlined,
@@ -50,7 +52,7 @@ class ServiceToggleButton extends StatelessWidget {
             size: compact ? 20 : 24,
           ),
           visualDensity: compact ? VisualDensity.compact : null,
-          tooltip: isUp ? 'Stop services' : 'Start services',
+          tooltip: isUp ? l10n.serviceStopTooltip : l10n.serviceStartTooltip,
           onPressed: () => viewModel.toggle(),
         );
       },
@@ -78,7 +80,10 @@ class ServiceCardActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final editButton = onEditTap != null
-        ? EditIconButton(onPressed: onEditTap!, tooltip: 'Edit service group')
+        ? EditIconButton(
+            onPressed: onEditTap!,
+            tooltip: AppLocalizations.of(context).editServiceGroupTooltip,
+          )
         : null;
 
     return Row(
@@ -103,6 +108,13 @@ class ServiceCard extends StatelessWidget {
     this.onEditTap,
     this.onTap,
   });
+
+  /// The "running/total · state" summary line, in [l10n]'s language.
+  String _summary(AppLocalizations l10n) => l10n.serviceSummary(
+    viewModel.runningCount,
+    viewModel.totalCount,
+    viewModel.state.localizedLabel(l10n),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -137,8 +149,7 @@ class ServiceCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            '${viewModel.runningCount}/${viewModel.totalCount} '
-                            'running · ${viewModel.state.label}',
+                            _summary(AppLocalizations.of(context)),
                             style: Theme.of(
                               context,
                             ).textTheme.bodySmall?.copyWith(color: Colors.grey),
@@ -213,7 +224,10 @@ class ServiceGridCard extends StatelessWidget {
                   // The member count is what a process card never shows, so
                   // the two kinds stay distinguishable at a glance.
                   Text(
-                    '${viewModel.runningCount}/${viewModel.totalCount} running',
+                    AppLocalizations.of(context).serviceGridSummary(
+                      viewModel.runningCount,
+                      viewModel.totalCount,
+                    ),
                     style: const TextStyle(fontSize: 11, color: Colors.grey),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

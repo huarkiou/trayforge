@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:desktop_tray/desktop_tray.dart';
 import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/services/service_manager.dart';
@@ -101,7 +102,11 @@ class TrayViewModel extends ChangeNotifier {
   /// rebuild on — [buildMenu] itself always reads the current config. A
   /// separator marks a change of kind, which is the only visual signal a
   /// service group gets here.
-  TrayMenu buildMenu() {
+  ///
+  /// [l10n] is passed in rather than looked up: the menu is built outside the
+  /// widget tree, and the caller (`main`) owns the resolved language so a
+  /// language change can rebuild the menu with the new strings.
+  TrayMenu buildMenu(AppLocalizations l10n) {
     final config = _configStore.load();
     final units = config?.units ?? const <UnitConfig>[];
 
@@ -130,9 +135,9 @@ class TrayViewModel extends ChangeNotifier {
     }
 
     // Fixed items
-    items.add(TrayMenuItem(key: 'reload', label: 'Reload Settings'));
-    items.add(TrayMenuItem(key: 'dashboard', label: 'Dashboard'));
-    items.add(TrayMenuItem(key: 'exit', label: 'Exit'));
+    items.add(TrayMenuItem(key: 'reload', label: l10n.trayReloadSettings));
+    items.add(TrayMenuItem(key: 'dashboard', label: l10n.trayDashboard));
+    items.add(TrayMenuItem(key: 'exit', label: l10n.trayExit));
 
     return TrayMenu(items: items);
   }

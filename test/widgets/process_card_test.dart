@@ -7,6 +7,8 @@ import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
 import 'package:trayforge/widgets/process_card.dart';
 
+import '../helpers/localized_app.dart';
+
 /// A fake ProcessManager that provides state and output streams on demand.
 class _FakeProcessManager extends Fake implements ProcessManager {
   final Map<String, StreamController<ProcState>> _stateControllers = {};
@@ -152,7 +154,7 @@ void main() {
     });
 
     Widget buildCard({VoidCallback? onTap}) {
-      return MaterialApp(
+      return localizedApp(
         home: Scaffold(
           body: ProcessCard(viewModel: vm, onTap: onTap ?? () {}),
         ),
@@ -293,7 +295,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        localizedApp(
           home: Scaffold(
             body: ProcessCard(viewModel: vm2, onTap: () {}),
           ),
@@ -346,7 +348,7 @@ void main() {
 
     testWidgets('shows edit icon when onEditTap is non-null', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        localizedApp(
           home: Scaffold(
             body: ProcessCard(viewModel: vm, onTap: () {}, onEditTap: () {}),
           ),
@@ -360,7 +362,7 @@ void main() {
     testWidgets('tapping edit icon calls onEditTap', (tester) async {
       var editTapped = false;
       await tester.pumpWidget(
-        MaterialApp(
+        localizedApp(
           home: Scaffold(
             body: ProcessCard(
               viewModel: vm,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
 import 'package:trayforge/widgets/follow_scroll.dart';
 import 'package:trayforge/widgets/status_dot.dart';
@@ -75,6 +76,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyF, control: true):
@@ -99,7 +101,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
             if (widget.onEditTap != null)
               IconButton(
                 icon: const Icon(Icons.edit),
-                tooltip: 'Edit process',
+                tooltip: l10n.editProcessTooltip,
                 onPressed: widget.onEditTap,
               ),
             ListenableBuilder(
@@ -112,7 +114,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
                 children.add(
                   IconButton(
                     icon: const Icon(Icons.delete_sweep),
-                    tooltip: 'Clear output',
+                    tooltip: l10n.processClearOutput,
                     onPressed: () {
                       // Clearing starts a new log session: return to
                       // Follow-latest, since the previous scroll position
@@ -127,7 +129,9 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
                     icon: Icon(
                       _searchVisible ? Icons.search_off : Icons.search,
                     ),
-                    tooltip: _searchVisible ? 'Close search' : 'Search output',
+                    tooltip: _searchVisible
+                        ? l10n.processCloseSearch
+                        : l10n.processSearchOutput,
                     onPressed: _toggleSearch,
                   ),
                 );
@@ -153,7 +157,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
                   controller: _searchController,
                   focusNode: _searchFocusNode,
                   decoration: InputDecoration(
-                    hintText: 'Filter output...',
+                    hintText: l10n.processFilterHint,
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.clear),
@@ -183,17 +187,20 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
                   .toList();
 
         if (filtered.isEmpty && _searchText.isNotEmpty) {
-          return const Center(
+          return Center(
             child: Text(
-              'No matching lines',
-              style: TextStyle(color: Colors.grey),
+              AppLocalizations.of(context).processNoMatchingLines,
+              style: const TextStyle(color: Colors.grey),
             ),
           );
         }
 
         if (filtered.isEmpty) {
-          return const Center(
-            child: Text('No output yet', style: TextStyle(color: Colors.grey)),
+          return Center(
+            child: Text(
+              AppLocalizations.of(context).noOutputYet,
+              style: const TextStyle(color: Colors.grey),
+            ),
           );
         }
 

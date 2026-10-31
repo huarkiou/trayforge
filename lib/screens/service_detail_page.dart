@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/viewmodels/service_viewmodel.dart';
 import 'package:trayforge/widgets/follow_scroll.dart';
 import 'package:trayforge/widgets/service_card.dart';
@@ -42,6 +43,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
         title: ListenableBuilder(
@@ -59,12 +61,12 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
           if (widget.onEditTap != null)
             IconButton(
               icon: const Icon(Icons.edit),
-              tooltip: 'Edit service group',
+              tooltip: l10n.editServiceGroupTooltip,
               onPressed: widget.onEditTap,
             ),
           IconButton(
             icon: const Icon(Icons.delete_sweep),
-            tooltip: 'Clear log',
+            tooltip: l10n.serviceClearLog,
             onPressed: () {
               _follow.reset();
               _vm.clearOutput();
@@ -89,11 +91,11 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
       listenable: _vm,
       builder: (context, _) {
         if (_vm.statuses.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(12),
+          return Padding(
+            padding: const EdgeInsets.all(12),
             child: Text(
-              'Querying services…',
-              style: TextStyle(color: Colors.grey),
+              AppLocalizations.of(context).serviceQuerying,
+              style: const TextStyle(color: Colors.grey),
             ),
           );
         }
@@ -117,10 +119,10 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
       builder: (context, _) {
         final lines = _vm.outputLines;
         if (lines.isEmpty) {
-          return const Center(
+          return Center(
             child: Text(
-              'No activity yet',
-              style: TextStyle(color: Colors.grey),
+              AppLocalizations.of(context).serviceNoActivity,
+              style: const TextStyle(color: Colors.grey),
             ),
           );
         }
