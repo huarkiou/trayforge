@@ -45,12 +45,16 @@ Future<void> longPressDrag(
 ///
 /// [configCorrupted] forwards to [DashboardViewModel]; [withSettings] also
 /// adds a [SettingsViewModel] (and the AppBar buttons that come with it).
+/// [emitOnConfigReload] is forwarded to the fake process manager: pass `false`
+/// to keep the managers from rebuilding the dashboard after a settings edit,
+/// which is the window a reorder/delete sees before the reload lands.
 Future<
   ({
     RecordingConfigStore store,
     _FakeProcessManager pm,
     FakeServiceManager svc,
     DashboardViewModel dm,
+    SettingsViewModel? sm,
   })
 >
 pumpDashboard(
@@ -58,9 +62,10 @@ pumpDashboard(
   required AppConfig config,
   bool withSettings = true,
   bool configCorrupted = false,
+  bool emitOnConfigReload = true,
 }) async {
   final store = RecordingConfigStore(config);
-  final pm = _FakeProcessManager();
+  final pm = _FakeProcessManager(emitOnConfigReload: emitOnConfigReload);
   final svc = FakeServiceManager();
   final dm = DashboardViewModel(
     configStore: store,
@@ -80,12 +85,21 @@ pumpDashboard(
       home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
     ),
   );
-  return (store: store, pm: pm, svc: svc, dm: dm);
+  return (store: store, pm: pm, svc: svc, dm: dm, sm: sm);
 }
 
 /// A minimal fake that satisfies the [ProcessManager] interface for
 /// DashboardViewModel construction.
 class _FakeProcessManager extends Fake implements ProcessManager {
+  /// Whether [reloadConfig] emits on [onConfigReloaded].
+  ///
+  /// `false` models the window after a settings edit but before the managers'
+  /// reload lands: the config store is already updated, but neither the
+  /// dashboard nor the settings view model has rebuilt from it yet.
+  final bool emitOnConfigReload;
+
+  _FakeProcessManager({this.emitOnConfigReload = true});
+
   final StreamController<void> _configReloaded =
       StreamController<void>.broadcast(sync: true);
 
@@ -129,7 +143,7 @@ class _FakeProcessManager extends Fake implements ProcessManager {
 
   @override
   Future<void> reloadConfig(AppConfig config) async {
-    _configReloaded.add(null);
+    if (emitOnConfigReload) _configReloaded.add(null);
   }
 
   @override
@@ -1070,6 +1084,80 @@ void main() {
       expect(saved!.units.map((u) => u.name), ['Licenses', 'svc-a', 'svc-b']);
       expect(saved.units.first, isA<ServiceConfig>());
       expect(saved.dashboardLayout, DashboardLayout.grid);
+    });
+  });
+
+  group('DashboardScreen before the managers reload', () {
+    testWidgets('a deleted unit disappears immediately, not at the end', (
+      tester,
+    ) async {
+      final h = await pumpDashboard(
+        tester,
+        config: const AppConfig(
+          units: [
+            ProcessConfig(name: 'p1', cmd: 'p1.exe'),
+            ServiceConfig(name: 'g1', services: ['Svc']),
+            ProcessConfig(name: 'p2', cmd: 'p2.exe'),
+          ],
+        ),
+        emitOnConfigReload: false,
+      );
+
+      expect(find.text('p2'), findsOneWidget);
+
+      h.sm!.deleteUnit(2);
+      await tester.pump();
+
+      // The config no longer has p2, so the dashboard must omit it right away
+      // rather than appending the orphaned view model at the end.
+      expect(find.text('p2'), findsNothing);
+      expect(find.text('p1'), findsOneWidget);
+      expect(find.text('g1'), findsOneWidget);
+
+      // The dashboard view model still owns p2 until the managers' reload
+      // lands; the omission is the rendered list's job.
+      expect(h.dm.units.map((u) => u.name), ['p1', 'g1', 'p2']);
+    });
+
+    testWidgets('a drag moves units by identity, not by rendered index', (
+      tester,
+    ) async {
+      final h = await pumpDashboard(
+        tester,
+        config: const AppConfig(
+          units: [
+            ProcessConfig(name: 'A', cmd: 'a.exe'),
+            ProcessConfig(name: 'B', cmd: 'b.exe'),
+          ],
+        ),
+        emitOnConfigReload: false,
+      );
+
+      // The settings list gains a hidden H between A and B; the dashboard has
+      // no view model for it yet, so it renders [A, B].
+      h.sm!.addUnit(const ServiceConfig(name: 'H', services: ['Hidden']));
+      h.sm!.moveUnitBefore(
+        UnitKind.service,
+        'H',
+        before: (UnitKind.process, 'B'),
+      );
+      await tester.pump();
+
+      expect(h.sm!.units.map((u) => u.name), ['A', 'H', 'B']);
+      expect(find.text('H'), findsNothing);
+      expect(find.text('B'), findsOneWidget);
+
+      await longPressDrag(
+        tester,
+        tester.getCenter(find.text('B')),
+        tester.getCenter(find.text('A')) - const Offset(0, 120),
+      );
+
+      // Moving B before A by identity gives [B, A, H]. Reusing the rendered
+      // indexes (1 → 0) against settings.units would have produced [H, A, B].
+      final saved = h.store.lastSaved;
+      expect(saved, isNotNull);
+      expect(saved!.units.map((u) => u.name), ['B', 'A', 'H']);
     });
   });
 }

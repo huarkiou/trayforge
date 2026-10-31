@@ -136,8 +136,12 @@ void main() {
       expect(saved.services.single.services, ['A', 'B']);
     });
 
-    test('reorders a unit across kinds and persists the new order', () {
-      viewModel.reorderItem(1, 0);
+    test('moves a unit across kinds and persists the new order', () {
+      viewModel.moveUnitBefore(
+        UnitKind.service,
+        'Licenses',
+        before: (UnitKind.process, 'proc'),
+      );
 
       final saved = configStore.load()!;
       expect(saved.units.map((u) => u.name), ['Licenses', 'proc']);
@@ -145,8 +149,47 @@ void main() {
       expect(saved.units[1], isA<ProcessConfig>());
     });
 
+    test('moving a unit that is not in the list is a no-op', () {
+      viewModel.moveUnitBefore(
+        UnitKind.process,
+        'missing',
+        before: (UnitKind.service, 'Licenses'),
+      );
+
+      expect(viewModel.units.map((u) => u.name), ['proc', 'Licenses']);
+      // No-op means no write either: ConfigStore.save would have left a backup.
+      expect(
+        Directory('${tmpDir.path}/backups').existsSync(),
+        isFalse,
+        reason: 'a no-op must not persist the config again',
+      );
+    });
+
+    test('an unknown before appends the unit at the end', () {
+      viewModel.moveUnitBefore(
+        UnitKind.process,
+        'proc',
+        before: (UnitKind.service, 'missing'),
+      );
+
+      expect(configStore.load()!.units.map((u) => u.name), [
+        'Licenses',
+        'proc',
+      ]);
+    });
+
+    test('naming the moved unit itself is a no-op', () {
+      viewModel.moveUnitBefore(
+        UnitKind.process,
+        'proc',
+        before: (UnitKind.process, 'proc'),
+      );
+
+      expect(viewModel.units.map((u) => u.name), ['proc', 'Licenses']);
+    });
+
     test(
-      'reorderItem persists the order without reloading the managers',
+      'moveUnitBefore persists the order without reloading the managers',
       () async {
         // An autostart process: reloadConfig would start it again from `stopped`.
         writeConfig(
@@ -167,7 +210,7 @@ void main() {
         expect(processManager.getState('auto'), ProcState.stopped);
         final startsBefore = mockRunner.starts.length;
 
-        viewModel.reorderItem(0, 1);
+        viewModel.moveUnitBefore(UnitKind.process, 'auto');
 
         final saved = configStore.load()!;
         expect(saved.units.map((u) => u.name), ['manual', 'auto']);

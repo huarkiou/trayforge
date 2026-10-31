@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
+import 'package:trayforge/widgets/edit_icon_button.dart';
 import 'package:trayforge/widgets/status_dot.dart';
 import 'package:trayforge/widgets/toggle_button.dart';
 import 'package:trayforge/widgets/webui_copy_button.dart';
@@ -93,12 +94,7 @@ class ProcessCardActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final editButton = onEditTap != null
-        ? IconButton(
-            icon: const Icon(Icons.edit, size: 20),
-            tooltip: 'Edit process',
-            onPressed: onEditTap,
-            visualDensity: VisualDensity.compact,
-          )
+        ? EditIconButton(onPressed: onEditTap!, tooltip: 'Edit process')
         : null;
 
     return Row(

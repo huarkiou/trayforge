@@ -96,9 +96,11 @@ class TrayViewModel extends ChangeNotifier {
   /// Builds the tray context menu from the configured units, in dashboard
   /// order.
   ///
-  /// The menu follows [AppConfig.units] so it cannot disagree with the
-  /// dashboard about order; a separator marks a change of kind, which is the
-  /// only visual signal a service group gets here.
+  /// The menu follows [AppConfig.units]. A reorder is persisted without
+  /// notifying the tray, so the menu carries the new order from its next
+  /// rebuild on — [buildMenu] itself always reads the current config. A
+  /// separator marks a change of kind, which is the only visual signal a
+  /// service group gets here.
   TrayMenu buildMenu() {
     final config = _configStore.load();
     final units = config?.units ?? const <UnitConfig>[];
@@ -160,7 +162,7 @@ class TrayViewModel extends ChangeNotifier {
     }
   }
 
-  /// Called when the process or service list changes (config reload).
+  /// Called when the configured units change (config reload).
   void onConfigChanged() {
     _rebuildSubscriptions();
     notifyListeners();

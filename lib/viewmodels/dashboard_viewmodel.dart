@@ -108,14 +108,13 @@ class DashboardViewModel extends ChangeNotifier {
   /// All cards, in config order: processes and service groups interleaved.
   List<DashboardUnit> get units => List.unmodifiable(_units);
 
-  /// The units re-ordered to match [order], for callers holding a fresher
-  /// order than the last config reload.
+  /// The dashboard units in [order].
   ///
-  /// A reorder persists without reloading the managers, so [units] can lag
-  /// the file by one edit. Anything [order] does not mention keeps its
-  /// current position at the end: the view model still owns that unit, so it
-  /// is moved, never dropped.
-  List<DashboardUnit> orderedBy(List<UnitConfig> order) {
+  /// Units [order] does not mention are **omitted**: the order comes from the
+  /// config, so a unit missing from it is one the config no longer has, and its
+  /// view model only survives until the managers' reload lands. Order entries
+  /// with no view model yet (a just-added unit) are skipped too.
+  List<DashboardUnit> unitsInOrder(List<UnitConfig> order) {
     final remaining = List<DashboardUnit>.of(_units);
     final ordered = <DashboardUnit>[];
 
@@ -128,7 +127,6 @@ class DashboardViewModel extends ChangeNotifier {
       }
     }
 
-    ordered.addAll(remaining);
     return ordered;
   }
 

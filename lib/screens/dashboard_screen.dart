@@ -191,12 +191,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// The cards to render, in the settings view model's current order.
   ///
   /// A reorder is persisted without reloading the managers, so the dashboard
-  /// view model is not rebuilt by a drag; [DashboardViewModel.orderedBy]
-  /// applies the newer settings order immediately, without a second ordering
-  /// list in the screen.
+  /// view model is not rebuilt by a drag; [DashboardViewModel.unitsInOrder]
+  /// applies the newer settings order immediately. A unit the config no longer
+  /// has is omitted during the reload window rather than appended at the end.
   List<DashboardUnit> get _units => widget.settingsViewModel == null
       ? widget.viewModel.units
-      : widget.viewModel.orderedBy(widget.settingsViewModel!.units);
+      : widget.viewModel.unitsInOrder(widget.settingsViewModel!.units);
+
+  /// Moves the rendered card at [oldIndex] before the card at [newIndex].
+  ///
+  /// [oldIndex] and [newIndex] are rendered indexes: work out the identities
+  /// here and hand them to the settings view model. Never pass those indexes to
+  /// [SettingsViewModel.units] — the rendered list and `settings.units` can
+  /// differ by a card while a deleted or renamed unit is still in the dashboard
+  /// view model, so an index means a different unit in each list.
+  void _moveBefore(List<DashboardUnit> units, int oldIndex, int newIndex) {
+    final settings = widget.settingsViewModel;
+    if (settings == null) return;
+
+    final moved = units[oldIndex];
+    final without = [...units]..removeAt(oldIndex);
+    final next = newIndex >= without.length ? null : without[newIndex];
+    settings.moveUnitBefore(
+      moved.kind,
+      moved.name,
+      before: next == null ? null : (next.kind, next.name),
+    );
+  }
 
   Widget _buildListBody(BuildContext context) {
     final units = _units;
@@ -205,7 +226,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       itemCount: units.length,
       buildDefaultDragHandles: false,
       onReorderItem: (oldIndex, newIndex) {
-        widget.settingsViewModel?.reorderItem(oldIndex, newIndex);
+        _moveBefore(units, oldIndex, newIndex);
       },
       itemBuilder: (context, index) {
         final unit = units[index];
@@ -235,8 +256,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ///
   /// Wrapped in [ReorderableBuilder] for long-press drag reordering. The
   /// package's `onReorderPositions` delivers final positions (the same
-  /// pre-adjusted index contract as `ReorderableListView.onReorderItem`),
-  /// so the entities pass through to the settings reorder path unchanged.
+  /// pre-adjusted index contract as `ReorderableListView.onReorderItem`), so
+  /// each entity is turned into the moved unit's identity and the unit that
+  /// now follows it.
   Widget _buildGridBody(BuildContext context) {
     final units = _units;
     return ReorderableBuilder.builder(
@@ -244,10 +266,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       itemCount: units.length,
       onReorderPositions: (entities) {
         for (final entity in entities) {
-          widget.settingsViewModel?.reorderItem(
-            entity.oldIndex,
-            entity.newIndex,
-          );
+          _moveBefore(units, entity.oldIndex, entity.newIndex);
         }
       },
       childBuilder: (itemBuilder) => GridView.builder(

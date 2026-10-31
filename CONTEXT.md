@@ -7,11 +7,18 @@ concepts the code is organised around; see `docs/adr/` for decisions.
 
 One card in the dashboard flow: either a Process or a Service Group. The config
 keeps units in one ordered list (`AppConfig.units`, JSON `units` with a `kind`
-discriminator), so the dashboard and the tray menu share a single order and a
-drag can move any card anywhere. `UnitConfig` is the sealed base of
-`ProcessConfig` and `ServiceConfig`; `AppConfig.processes` / `.services` are
-derived views of the same list. `UnitKind` is the single place a kind's JSON
-value, label and key prefix live. See ADR 006.
+discriminator written by `AppConfig`), so the dashboard and the tray menu share a
+single order and a drag can move any card anywhere. The dashboard applies a
+reorder immediately; nothing notifies the tray, so its menu follows the new order
+when it is next rebuilt (any tray update, a config reload, or a restart).
+`UnitConfig` is the sealed base of `ProcessConfig` and `ServiceConfig` and
+exposes a computed `UnitKind get kind` (nothing stored, no per-kind field);
+`AppConfig.processes` / `.services` are derived views of the same list.
+`UnitKind` is the single place a kind's JSON value, label and key prefix live.
+Names are expected to be unique within a kind, not enforced: the managers key
+controllers by name, so a hand-edited duplicate within a kind would collide; keys
+carry the kind prefix, so different kinds may share a label; a copy is renamed.
+See ADR 006.
 _Avoid_: item, entry, item type
 
 ## Process

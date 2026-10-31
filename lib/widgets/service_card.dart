@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/viewmodels/service_viewmodel.dart';
+import 'package:trayforge/widgets/edit_icon_button.dart';
 import 'package:trayforge/widgets/service_status_row.dart';
 import 'package:trayforge/widgets/status_dot.dart';
 
@@ -63,7 +64,8 @@ class ServiceCardActions extends StatelessWidget {
   final ServiceViewModel viewModel;
   final VoidCallback? onEditTap;
 
-  /// Smaller icons and a tighter hit box, used by the compact grid tile.
+  /// Tighter hit box for [ServiceToggleButton], used by the compact grid
+  /// tile. The edit button keeps its one shared size in both layouts.
   final bool compact;
 
   const ServiceCardActions({
@@ -76,12 +78,7 @@ class ServiceCardActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final editButton = onEditTap != null
-        ? IconButton(
-            icon: Icon(Icons.edit, size: compact ? 20 : null),
-            tooltip: 'Edit service group',
-            onPressed: onEditTap,
-            visualDensity: compact ? VisualDensity.compact : null,
-          )
+        ? EditIconButton(onPressed: onEditTap!, tooltip: 'Edit service group')
         : null;
 
     return Row(

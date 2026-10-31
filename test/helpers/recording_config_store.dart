@@ -6,7 +6,7 @@ import 'package:trayforge/services/config_store.dart';
 ///
 /// Unlike stubbing-only fakes, every [save] is captured so tests can
 /// assert what would have been written to `config.json` — e.g. a
-/// reordered process list or carried-over globals like
+/// reordered unit list or carried-over globals like
 /// `dashboard_layout`.
 class RecordingConfigStore extends Fake implements ConfigStore {
   /// The current config; [load] returns this. Updated on every [save].
@@ -14,6 +14,10 @@ class RecordingConfigStore extends Fake implements ConfigStore {
 
   /// Every config passed to [save], in call order.
   final List<AppConfig> saved = [];
+
+  /// Applies the real validation rules; [Fake] would otherwise throw on
+  /// [validate], which the settings view model calls before every add/edit.
+  final ConfigStore _validator = ConfigStore(dataDir: 'unused');
 
   RecordingConfigStore([this.config]);
 
@@ -25,6 +29,9 @@ class RecordingConfigStore extends Fake implements ConfigStore {
     saved.add(value);
     config = value;
   }
+
+  @override
+  void validate(UnitConfig unit) => _validator.validate(unit);
 
   /// The most recently saved config, or `null` if [save] was never called.
   AppConfig? get lastSaved => saved.isEmpty ? null : saved.last;

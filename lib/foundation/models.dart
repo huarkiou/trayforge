@@ -32,7 +32,7 @@ extension ProcStateX on ProcState {
   }
 }
 
-/// The layout mode of the Dashboard process list.
+/// The layout mode of the Dashboard's card flow of units.
 enum DashboardLayout { list, grid }
 
 /// The two kinds of unit, and the strings each kind is known by.
@@ -78,9 +78,11 @@ sealed class UnitConfig {
 
   /// Display name.
   ///
-  /// Names are unique within their kind. Cards and menu items are keyed by
-  /// kind + name ([UnitKind.keyPrefix] followed by the name), so a process and
-  /// a service group may share a label without colliding.
+  /// Names are expected to be unique within their kind: the managers key their
+  /// controllers by name, so a hand-edited duplicate would make two cards for
+  /// one controller. Keys carry the kind prefix ([UnitKind.keyPrefix] followed
+  /// by the name), so different kinds may share a label without colliding. A
+  /// copy is renamed.
   String get name;
 
   /// The kind-specific fields, without the `kind` discriminator.
@@ -315,7 +317,7 @@ class AppConfig {
   /// interleaved however the user arranged them.
   ///
   /// This list *is* the order — there is no separate layout array. Reordering
-  /// the dashboard moves an entry here.
+  /// the dashboard moves a unit here.
   final List<UnitConfig> units;
 
   const AppConfig({
@@ -403,9 +405,9 @@ class AppConfig {
     ];
   }
 
-  /// Parses one unit entry.
+  /// Parses one unit.
   ///
-  /// `kind` is optional so a hand-written entry can omit it; the entry's shape
+  /// `kind` is optional so a hand-written unit can omit it; the unit's shape
   /// then decides (`services` → service group, otherwise a process). An
   /// explicit kind wins over the shape, and an unknown kind is a config we
   /// cannot interpret, so it fails like any other parse error and

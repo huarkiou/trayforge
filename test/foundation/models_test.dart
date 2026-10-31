@@ -371,7 +371,7 @@ void main() {
       expect(parsed.units[1], isA<ServiceConfig>());
     });
 
-    test('infers the kind when a hand-written entry omits it', () {
+    test('infers the kind when a hand-written unit omits it', () {
       final parsed = AppConfig.fromJson({
         'units': [
           {'name': 'p1', 'cmd': 'c1'},
@@ -386,7 +386,7 @@ void main() {
       expect(parsed.units[1], isA<ServiceConfig>());
     });
 
-    test('an explicit kind wins over the entry shape', () {
+    test('an explicit kind wins over the shape', () {
       final parsed = AppConfig.fromJson({
         'units': [
           {

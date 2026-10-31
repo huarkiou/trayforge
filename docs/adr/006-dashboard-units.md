@@ -25,11 +25,13 @@ order was always "all processes, then all services" — a constant, not a choice
    second layout array to keep in sync. `AppConfig.processes` and `.services`
    survive as derived getters, so `ProcessManager` and `ServiceManager` keep
    their existing inputs.
-2. **The kind lives in the file, not in the classes.** JSON is flat with a
-   discriminator: `{"kind": "process", ...process fields...}` /
-   `{"kind": "service", ...group fields...}` inside `units`. A `ProcessConfig`
-   written outside a units array has no kind to declare, and neither config
-   class grows a field the other kind does not have.
+2. **The kind is written by `AppConfig`; the classes compute it.** JSON is flat
+   with a discriminator: `{"kind": "process", ...process fields...}` /
+   `{"kind": "service", ...group fields...}` inside `units`. `AppConfig.toJson`
+   adds `kind` from `unit.kind.jsonValue`; `UnitConfig.toJson` contributes only
+   the per-kind fields. The kind is not stored: `UnitConfig` declares a computed
+   `UnitKind get kind`, and each subclass overrides it. Nothing kind-specific
+   leaks into the sibling class.
 3. **Old configs migrate on read, not on write.** A file with `processes` +
    `services` and no `units` loads as units in the old visual order (processes
    first). The next save writes `units` only: keeping both spellings would be
@@ -47,7 +49,9 @@ order was always "all processes, then all services" — a constant, not a choice
    view model (the group card and its toggle listen themselves — the dashboard
    does not wrap each card in a rebuild).
 6. **The tray lists units in the same order**, with a separator where the kind
-   changes, so the menu cannot disagree with the dashboard about ordering.
+   changes. It reads `units` when the menu is built, so it follows the dashboard
+   order the next time the menu is rebuilt (any tray update, a config reload, or
+   a restart); a drag itself is not pushed to the tray.
 7. **The Services page is gone.** Cards are added, edited, reordered and opened
    from the dashboard; the `+` menu offers "Add process" / "Add service group",
    and the welcome screen (shown only when there is nothing at all) offers both.
@@ -58,13 +62,14 @@ order was always "all processes, then all services" — a constant, not a choice
   reorder persists the new order and does **not** reload the managers — a
   reload would run the autostart path and could start a process the user
   stopped by hand. The dashboard applies the newer order immediately by reading
-  the `settings.units` order through `DashboardViewModel.orderedBy`, and the
-  tray and the next reload of either manager agree because both read the config.
-- Config writes are simpler (one array). Names are unique within a kind, as the
-  model documents `UnitConfig.name`: card keys and tray keys carry the kind
-  prefix (`proc:` / `svc:`), so two units of different kinds may share a label
-  and still stay distinct, and a copy is renamed rather than creating a
-  duplicate label.
+  the `settings.units` order through `DashboardViewModel.unitsInOrder`. Nothing
+  notifies `TrayViewModel` on a reorder, so the tray follows the same order the
+  next time its menu is rebuilt (any tray update, a config reload, or a
+  restart); the next reload of either manager also reads the config.
+- Config writes are simpler (one array). Names are expected to be unique within
+  a kind, not enforced: the managers key controllers by name, so a hand-edited
+  duplicate within a kind would collide; keys carry the kind prefix, so
+  different kinds may share a label; a copy is renamed.
 - `ProcessManager` / `ServiceManager` are untouched: the derived getters hand
   each one its own kind in dashboard order.
 - Fewer files (`services_page.dart`, `services_viewmodel.dart` and their tests

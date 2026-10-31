@@ -45,13 +45,24 @@ process or a service group:
   the order, so reorder is a list move, and add/delete are list operations.
   `services` / `processes` relative order inside the array is whatever the user
   dragged; nothing else reads that order for correctness.
+- **Reorder moves by identity, not by index.** The screen turns a rendered drop
+  position into the moved unit's kind + name and the unit that now follows it,
+  then calls `SettingsViewModel.moveUnitBefore(kind, name, before:)`. That
+  matters because the rendered order comes from
+  `DashboardViewModel.unitsInOrder(settings.units)`, which can be shorter than
+  `settings.units` by a card while a deleted unit is still in the dashboard
+  view model. A unit the config no longer has is not rendered during that
+  reload window (it is omitted, not parked at the end).
 - **Reorder persists the order without reloading the managers.** A drag is a
   list move, so it writes the new `units` order and stops there: reloading
   would run the autostart path and could start a process the user stopped
-  manually. The dashboard applies the newer order immediately by reading the
-  `settings.units` order through `DashboardViewModel.orderedBy`; the tray menu
-  and the next reload of either manager agree because both read the config.
-  Nothing about a unit's running state changes.
+  manually. The dashboard applies the newer order immediately through
+  `DashboardViewModel.unitsInOrder`; the tray menu and the next reload of either
+  manager follow the config. Nothing about a unit's running state changes.
+- **Names are expected to be unique within a kind, not enforced.** The managers
+  key controllers by name, so a hand-edited duplicate within a kind would
+  collide; keys carry the kind prefix, so different kinds may share a label; a
+  copy is renamed.
 - **One dashboard view model.** `DashboardViewModel` owns both kinds' view
   models and rebuilds from `units`, so the dashboard has a single ordered
   `units` list of `DashboardUnit` (`ProcessUnit` / `ServiceUnit`).
@@ -62,7 +73,9 @@ process or a service group:
   (`ServiceGridCard` is the compact grid tile: state, name, `N/M running`,
   toggle, edit). Both are dragged the same way.
 - **The tray menu follows the same order** (units in config order, a separator
-  only where the kind changes), so the menu and the dashboard cannot disagree.
+  only where the kind changes). Nothing notifies `TrayViewModel` on a reorder, so
+  it follows the new order the next time the menu is rebuilt (any tray update, a
+  config reload, or a restart), while the dashboard applies it immediately.
 - **Unchanged on purpose**: process and service managers, the elevation path,
   the detail pages, the toggle rules, the tray colour (still processes only),
   and no autostart for service groups.
@@ -87,14 +100,18 @@ process or a service group:
 - Model round-trip: `units` order preserved, kinds round-trip, legacy
   `processes` + `services` migrated in order, kind inferred when missing,
   unknown kind treated as corrupted.
-- `SettingsViewModel`: add/edit/delete/copy/reorder operate on unit indexes and
-  persist the whole units array (globals carried too — the "a new global lands
-  in three places" trap).
-- `DashboardViewModel`: units follow config order, view models are reused
-  across reloads by (kind, name), removed units are disposed.
+- `SettingsViewModel`: add/edit/delete/copy operate on unit indexes; reorder
+  moves by kind + name through `moveUnitBefore` (no rendered index reaches
+  `settings.units`). Every write persists the whole units array (globals carried
+  too — the "a new global lands in three places" trap); a reorder uses the one
+  write-only persist path, with no manager reload.
+- `DashboardViewModel`: units follow config order, `unitsInOrder` follows a
+  fresher settings order and omits units the config no longer has, view models
+  are reused across reloads by (kind, name), removed units are disposed.
 - `DashboardScreen`: mixed list and grid render in order, drag reorders across
-  kinds and persists, "+" menu offers both kinds, service card opens the
-  detail page, empty state only when there are no units.
+  kinds by identity and persists, a unit deleted through settings disappears
+  immediately (not parked at the end), "+" menu offers both kinds, service card
+  opens the detail page, empty state only when there are no units.
 - Tray: menu order follows units, keys stay `proc:` / `svc:`.
 
 ## Out of scope

@@ -283,9 +283,9 @@ void main() {
       );
     });
 
-    // ---- orderedBy ----
+    // ---- unitsInOrder ----
 
-    test('orderedBy follows the given order', () {
+    test('unitsInOrder follows the given order', () {
       writeConfig(
         tmpDir,
         const AppConfig(
@@ -299,7 +299,7 @@ void main() {
 
       final vm = build();
 
-      final ordered = vm.orderedBy(const <UnitConfig>[
+      final ordered = vm.unitsInOrder(const <UnitConfig>[
         ProcessConfig(name: 'p-b', cmd: 'b.exe'),
         ProcessConfig(name: 'p-a', cmd: 'a.exe'),
         ServiceConfig(name: 'group-a', services: ['A']),
@@ -315,7 +315,7 @@ void main() {
       ]);
     });
 
-    test('orderedBy keeps units missing from the order at the end', () {
+    test('unitsInOrder omits a unit the order does not mention', () {
       writeConfig(
         tmpDir,
         const AppConfig(
@@ -329,14 +329,38 @@ void main() {
 
       final vm = build();
 
-      final ordered = vm.orderedBy(const <UnitConfig>[
+      final ordered = vm.unitsInOrder(const <UnitConfig>[
         ProcessConfig(name: 'p-b', cmd: 'b.exe'),
       ]);
 
-      expect(ordered.map((u) => u.id), ['proc:p-b', 'proc:p-a', 'svc:group-a']);
+      expect(ordered.map((u) => u.id), ['proc:p-b']);
+      expect(ordered, hasLength(1));
+      expect(vm.units, hasLength(3));
     });
 
-    test('orderedBy ignores order entries with no view model yet', () {
+    test('unitsInOrder matches identity, not just the name', () {
+      writeConfig(
+        tmpDir,
+        const AppConfig(
+          units: [
+            ProcessConfig(name: 'p-a', cmd: 'a.exe'),
+            ServiceConfig(name: 'group-a', services: ['A']),
+          ],
+        ),
+      );
+
+      final vm = build();
+
+      // An order for a service group named p-a does not mention the process
+      // p-a: identity is kind + name.
+      final ordered = vm.unitsInOrder(const <UnitConfig>[
+        ServiceConfig(name: 'p-a', services: ['A']),
+      ]);
+
+      expect(ordered, isEmpty);
+    });
+
+    test('unitsInOrder ignores order entries with no view model yet', () {
       writeConfig(
         tmpDir,
         const AppConfig(
@@ -350,13 +374,13 @@ void main() {
 
       final vm = build();
 
-      final ordered = vm.orderedBy(const <UnitConfig>[
+      final ordered = vm.unitsInOrder(const <UnitConfig>[
         ProcessConfig(name: 'not-built', cmd: 'x.exe'),
         ProcessConfig(name: 'p-b', cmd: 'b.exe'),
       ]);
 
-      expect(ordered.map((u) => u.id), ['proc:p-b', 'proc:p-a', 'svc:group-a']);
-      expect(ordered, hasLength(3));
+      expect(ordered.map((u) => u.id), ['proc:p-b']);
+      expect(ordered, hasLength(1));
     });
 
     test('disposes ViewModels for removed units', () async {

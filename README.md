@@ -214,7 +214,10 @@ Behavior worth knowing:
   starts all members.
 - **Tray menu**: the menu follows the same `units` order, with a check mark
   while a unit is up; clicking one toggles it — the same single UAC prompt as
-  the card. The tray icon colour still reflects processes only.
+  the card. A reorder does not notify the tray, so its menu picks up the new
+  order when it is next rebuilt (any tray update, a config reload, or a
+  restart), while the Dashboard applies it immediately. The tray icon colour
+  still reflects processes only.
 - **No autostart.** Starting a group at login would prompt for UAC at login;
   use the service's own start type for boot-time behavior.
 - **Linux**: `systemctl` is used, with `pkexec` as the escalation fallback.
@@ -318,6 +321,7 @@ lib/
     ├── process_card.dart
     ├── service_card.dart
     ├── service_status_row.dart
+    ├── edit_icon_button.dart
     ├── follow_scroll.dart
     ├── status_dot.dart
     ├── toggle_button.dart

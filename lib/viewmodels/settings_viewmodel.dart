@@ -12,9 +12,11 @@ import 'package:trayforge/services/service_manager.dart';
 /// ViewModel for the Settings page.
 ///
 /// Holds a mutable copy of the [AppConfig.units] list, supports add/edit/
-/// delete/copy/reorder operations on unit indexes, validates via
-/// [ConfigStore.validate], and persists changes through
-/// [ProcessManager.reloadConfig] / [ServiceManager.reloadConfig].
+/// delete/copy operations on unit indexes and identity-based moves, validates
+/// via [ConfigStore.validate], and persists changes: structural edits reload
+/// both managers through [ProcessManager.reloadConfig] /
+/// [ServiceManager.reloadConfig], while globals and reorders write the file
+/// without a reload.
 ///
 /// Both kinds live in the same list: the dashboard's card order *is* the
 /// config order, so a reorder here is the whole ordering story.
@@ -68,26 +70,26 @@ class SettingsViewModel extends ChangeNotifier {
   /// Updates [servicePollMs] and persists.
   void setServicePollMs(int value) {
     _servicePollMs = value;
-    _saveGlobals();
+    _persistWithoutReload();
     _serviceManager?.applyPollInterval(value);
   }
 
   /// Updates [outputRefreshMs] and persists.
   void setOutputRefreshMs(int value) {
     _outputRefreshMs = value;
-    _saveGlobals();
+    _persistWithoutReload();
   }
 
   /// Updates [outputHistoryLimit] and persists.
   void setOutputHistoryLimit(int value) {
     _outputHistoryLimit = value;
-    _saveGlobals();
+    _persistWithoutReload();
   }
 
   /// Updates [dashboardLayout] and persists.
   void setDashboardLayout(DashboardLayout value) {
     _dashboardLayout = value;
-    _saveGlobals();
+    _persistWithoutReload();
   }
 
   /// Stops a running process by name.
@@ -132,20 +134,45 @@ class SettingsViewModel extends ChangeNotifier {
     _save();
   }
 
-  /// Reorders the unit list and persists the new order.
+  /// Moves the unit identified by [kind] and [name] so it sits directly before
+  /// the unit identified by [before], or at the end when [before] is null.
   ///
-  /// Uses the pre-adjusted newIndex from [ReorderableListView.onReorderItem],
-  /// which already accounts for the removed item at oldIndex. Moving a unit
-  /// past a unit of the other kind is just a move: the list has no kinds.
-  ///
-  /// Deliberately does not touch the managers (see [_saveOrder]): a drag must
-  /// not restart anything.
-  void reorderItem(int oldIndex, int newIndex) {
-    _units = List<UnitConfig>.from(_units);
-    final unit = _units.removeAt(oldIndex);
-    _units.insert(newIndex, unit);
-    _saveOrder();
+  /// Identity, not indexes: the dashboard renders this list's order through
+  /// [DashboardViewModel.unitsInOrder], and while a deleted or renamed unit is
+  /// still in the dashboard view model the rendered list can differ from this
+  /// list by a card — a rendered index would move the wrong unit or run past the
+  /// end. A unit that is not in the list is a no-op; an unknown [before] appends;
+  /// naming the moved unit itself is a no-op.
+  void moveUnitBefore(
+    UnitKind kind,
+    String name, {
+    (UnitKind, String)? before,
+  }) {
+    final moving = _units.indexWhere((unit) => _isUnit(unit, kind, name));
+    if (moving < 0) return;
+
+    if (before != null && _isUnit(_units[moving], before.$1, before.$2)) {
+      return;
+    }
+
+    final unit = _units[moving];
+    final rest = List<UnitConfig>.of(_units)..removeAt(moving);
+    final target = before == null
+        ? -1
+        : rest.indexWhere((other) => _isUnit(other, before.$1, before.$2));
+
+    rest.insert(target < 0 ? rest.length : target, unit);
+    _units = rest;
+    _persistWithoutReload();
   }
+
+  /// Whether [unit] is the unit identified by [kind] and [name].
+  ///
+  /// The managers key their controllers by kind + name, so this is the identity
+  /// a config-level move can safely use; [DashboardUnit.matches] is for
+  /// dashboard view-model units, not configs.
+  static bool _isUnit(UnitConfig unit, UnitKind kind, String name) =>
+      unit.kind == kind && unit.name == name;
 
   /// Replaces the unit at [unitIndex] and persists.
   void _replaceUnit(int unitIndex, UnitConfig unit) {
@@ -223,27 +250,15 @@ class SettingsViewModel extends ChangeNotifier {
     units: List<UnitConfig>.from(_units),
   );
 
-  /// Persists only global settings (refresh interval, history limit, service
-  /// poll interval, dashboard layout).
+  /// Persists the current in-memory config without touching the managers.
   ///
-  /// Writes to disk and notifies listeners. Does **not** call
-  /// [ProcessManager.reloadConfig] — globals take effect on next process
-  /// start and don't require a hot reload.
-  void _saveGlobals() {
-    _configStore.save(_buildConfig());
-    notifyListeners();
-  }
-
-  /// Persists the current unit order without touching the managers.
-  ///
-  /// A reorder is a list move, not a change the managers need to act on:
-  /// [ProcessManager.reloadConfig] starts every `autostart` process that is in
-  /// a terminal state, so routing a drag through it would silently start a
-  /// process the user had stopped by hand (and re-apply diffs no order change
-  /// needs). The order is persisted here; the dashboard applies it immediately
-  /// from `units` through `DashboardViewModel.orderedBy`, while the tray and
-  /// the next manager reload both read the config and therefore agree.
-  void _saveOrder() {
+  /// Two callers, neither of which has anything to reload: a global setting
+  /// (takes effect on the next launch/start) and a reorder (a list move —
+  /// [ProcessManager.reloadConfig] runs the autostart path and would start a
+  /// process the user stopped by hand). The dashboard applies a new order
+  /// immediately through [DashboardViewModel.unitsInOrder]; the tray and the
+  /// next reload of either manager read the config.
+  void _persistWithoutReload() {
     _configStore.save(_buildConfig());
     notifyListeners();
   }
