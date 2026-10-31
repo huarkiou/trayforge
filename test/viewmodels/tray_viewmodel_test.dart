@@ -150,44 +150,76 @@ void main() {
       final items = vm.buildMenu().items;
       final keys = items.map((item) => item.key).toList();
 
-      // Config order is process, then service group.
-      expect(keys.indexOf('proc:test-svc'), greaterThanOrEqualTo(0));
-      expect(
-        keys.indexOf('svc:Licenses'),
-        greaterThan(keys.indexOf('proc:test-svc')),
-      );
-      expect(keys, containsAll(['reload', 'dashboard', 'exit']));
+      // Config order is process, then service group; a separator marks the
+      // kind change, and a second one divides the fixed items.
+      expect(keys, [
+        'proc:test-svc',
+        null,
+        'svc:Licenses',
+        null,
+        'reload',
+        'dashboard',
+        'exit',
+      ]);
 
-      // One separator marks the kind change between them.
       final separators = items.where((item) => item.key == null).length;
       expect(separators, 2, reason: 'kind change + the fixed-item divider');
     });
 
-    test(
-      'reordering the units reorders the menu without a separator',
-      () async {
-        final vm = createTrayVm(withServices: serviceManager);
+    test('a same-kind list has only the fixed divider', () async {
+      writeConfig(
+        tmpDir,
+        const AppConfig(
+          units: [
+            ProcessConfig(name: 'one', cmd: 'one.exe'),
+            ProcessConfig(name: 'two', cmd: 'two.exe'),
+          ],
+        ),
+      );
+      final vm = createTrayVm(withServices: serviceManager);
 
-        writeConfig(
-          tmpDir,
-          const AppConfig(
-            units: [
-              ServiceConfig(name: 'Licenses', services: ['A']),
-              ProcessConfig(name: 'test-svc', cmd: 'test.exe'),
-            ],
-          ),
-        );
-        await serviceManager.reloadConfig(configStore.load()!);
+      final items = vm.buildMenu().items;
+      expect(items.map((item) => item.key), [
+        'proc:one',
+        'proc:two',
+        null,
+        'reload',
+        'dashboard',
+        'exit',
+      ]);
 
-        final items = vm.buildMenu().items;
-        final keys = items.map((item) => item.key).toList();
-        expect(
-          keys.indexOf('svc:Licenses'),
-          lessThan(keys.indexOf('proc:test-svc')),
-        );
-        final separators = items.where((item) => item.key == null).length;
-        expect(separators, 2);
-      },
-    );
+      final separators = items.where((item) => item.key == null).length;
+      expect(separators, 1, reason: 'the fixed-item divider only');
+    });
+
+    test('reordering the units reorders the menu', () async {
+      final vm = createTrayVm(withServices: serviceManager);
+
+      writeConfig(
+        tmpDir,
+        const AppConfig(
+          units: [
+            ServiceConfig(name: 'Licenses', services: ['A']),
+            ProcessConfig(name: 'test-svc', cmd: 'test.exe'),
+          ],
+        ),
+      );
+      await serviceManager.reloadConfig(configStore.load()!);
+
+      final items = vm.buildMenu().items;
+      expect(items.map((item) => item.key), [
+        'svc:Licenses',
+        null,
+        'proc:test-svc',
+        null,
+        'reload',
+        'dashboard',
+        'exit',
+      ]);
+
+      // Still one kind change, even though the kinds swapped places.
+      final separators = items.where((item) => item.key == null).length;
+      expect(separators, 2);
+    });
   });
 }

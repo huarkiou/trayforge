@@ -47,14 +47,6 @@ class SettingsViewModel extends ChangeNotifier {
   /// All units in dashboard order.
   List<UnitConfig> get units => List.unmodifiable(_units);
 
-  /// The processes among the units, in dashboard order.
-  List<ProcessConfig> get processes =>
-      _units.whereType<ProcessConfig>().toList(growable: false);
-
-  /// The service groups among the units, in dashboard order.
-  List<ServiceConfig> get services =>
-      _units.whereType<ServiceConfig>().toList(growable: false);
-
   /// Whether a process with [name] is currently running.
   bool isRunning(String name) {
     final state = _processManager.getState(name);
@@ -103,30 +95,17 @@ class SettingsViewModel extends ChangeNotifier {
     await _processManager.stop(name);
   }
 
-  /// Adds a new process to the end of the unit list and persists.
-  void addProcess(ProcessConfig config) {
-    _configStore.validate(config);
-    _units = [..._units, config];
+  /// Adds [unit] to the end of the unit list and persists.
+  void addUnit(UnitConfig unit) {
+    _configStore.validate(unit);
+    _units = [..._units, unit];
     _save();
   }
 
-  /// Replaces the unit at [unitIndex] with a process and persists.
-  void editProcess(int unitIndex, ProcessConfig config) {
-    _configStore.validate(config);
-    _replaceUnit(unitIndex, config);
-  }
-
-  /// Adds a new service group to the end of the unit list and persists.
-  void addService(ServiceConfig config) {
-    _configStore.validate(config);
-    _units = [..._units, config];
-    _save();
-  }
-
-  /// Replaces the unit at [unitIndex] with a service group and persists.
-  void editService(int unitIndex, ServiceConfig config) {
-    _configStore.validate(config);
-    _replaceUnit(unitIndex, config);
+  /// Replaces the unit at [unitIndex] with [unit] and persists.
+  void editUnit(int unitIndex, UnitConfig unit) {
+    _configStore.validate(unit);
+    _replaceUnit(unitIndex, unit);
   }
 
   /// Deletes the unit at [unitIndex] and persists.
@@ -153,16 +132,19 @@ class SettingsViewModel extends ChangeNotifier {
     _save();
   }
 
-  /// Reorders the unit list and persists.
+  /// Reorders the unit list and persists the new order.
   ///
   /// Uses the pre-adjusted newIndex from [ReorderableListView.onReorderItem],
   /// which already accounts for the removed item at oldIndex. Moving a unit
   /// past a unit of the other kind is just a move: the list has no kinds.
+  ///
+  /// Deliberately does not touch the managers (see [_saveOrder]): a drag must
+  /// not restart anything.
   void reorderItem(int oldIndex, int newIndex) {
     _units = List<UnitConfig>.from(_units);
-    final item = _units.removeAt(oldIndex);
-    _units.insert(newIndex, item);
-    _save();
+    final unit = _units.removeAt(oldIndex);
+    _units.insert(newIndex, unit);
+    _saveOrder();
   }
 
   /// Replaces the unit at [unitIndex] and persists.
@@ -204,18 +186,10 @@ class SettingsViewModel extends ChangeNotifier {
     return true;
   }
 
-  /// Validates a [ProcessConfig] using [ConfigStore.validate].
+  /// Validates a [UnitConfig] using [ConfigStore.validate].
   ///
   /// Returns `null` on success, or an error message string on failure.
-  String? validateConfig(ProcessConfig config) => _validate(config);
-
-  // ---- Service groups ----
-
-  /// Validates a [ServiceConfig], returning `null` or an error message.
-  String? validateServiceConfig(ServiceConfig config) => _validate(config);
-
-  /// Validates a [UnitConfig], returning `null` or an error message.
-  String? _validate(UnitConfig unit) {
+  String? validateUnit(UnitConfig unit) {
     try {
       _configStore.validate(unit);
       return null;
@@ -235,25 +209,42 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Assembles a complete [AppConfig] from the current in-memory state.
+  ///
+  /// Every write path goes through this. Assembling in one place is what keeps
+  /// a global from landing in three separate `AppConfig(...)` literals: a write
+  /// that carried only the edited half would silently drop the other half from
+  /// disk.
+  AppConfig _buildConfig() => AppConfig(
+    outputHistoryLimit: _outputHistoryLimit,
+    outputRefreshMs: _outputRefreshMs,
+    servicePollMs: _servicePollMs,
+    dashboardLayout: _dashboardLayout,
+    units: List<UnitConfig>.from(_units),
+  );
+
   /// Persists only global settings (refresh interval, history limit, service
   /// poll interval, dashboard layout).
   ///
   /// Writes to disk and notifies listeners. Does **not** call
   /// [ProcessManager.reloadConfig] — globals take effect on next process
   /// start and don't require a hot reload.
-  ///
-  /// Every global and the whole unit list must be carried here: writing only
-  /// the edited value would silently drop units from disk.
   void _saveGlobals() {
-    final config = _configStore.load() ?? AppConfig.defaultConfig();
-    final newConfig = AppConfig(
-      outputRefreshMs: _outputRefreshMs,
-      outputHistoryLimit: _outputHistoryLimit,
-      servicePollMs: _servicePollMs,
-      dashboardLayout: _dashboardLayout,
-      units: List<UnitConfig>.from(config.units),
-    );
-    _configStore.save(newConfig);
+    _configStore.save(_buildConfig());
+    notifyListeners();
+  }
+
+  /// Persists the current unit order without touching the managers.
+  ///
+  /// A reorder is a list move, not a change the managers need to act on:
+  /// [ProcessManager.reloadConfig] starts every `autostart` process that is in
+  /// a terminal state, so routing a drag through it would silently start a
+  /// process the user had stopped by hand (and re-apply diffs no order change
+  /// needs). The order is persisted here; the dashboard applies it immediately
+  /// from `units` through `DashboardViewModel.orderedBy`, while the tray and
+  /// the next manager reload both read the config and therefore agree.
+  void _saveOrder() {
+    _configStore.save(_buildConfig());
     notifyListeners();
   }
 
@@ -264,24 +255,18 @@ class SettingsViewModel extends ChangeNotifier {
   ///   2. ProcessManager.reloadConfig() / ServiceManager.reloadConfig() —
   ///      stop/start + emit onConfigReloaded
   void _save() {
-    final config = _configStore.load() ?? AppConfig.defaultConfig();
-    final newConfig = AppConfig(
-      outputHistoryLimit: config.outputHistoryLimit,
-      outputRefreshMs: config.outputRefreshMs,
-      servicePollMs: config.servicePollMs,
-      dashboardLayout: config.dashboardLayout,
-      units: _units,
-    );
-    _configStore.save(newConfig);
-    _processManager.reloadConfig(newConfig);
-    _serviceManager?.reloadConfig(newConfig);
+    final config = _buildConfig();
+    _configStore.save(config);
+    _processManager.reloadConfig(config);
+    _serviceManager?.reloadConfig(config);
     notifyListeners();
   }
 
   /// Generates a unique name by appending a counter if needed.
   ///
-  /// Uniqueness is checked across every unit, not per kind: two cards with the
-  /// same label are a bug even when one is a process and the other a group.
+  /// Copies are checked across every unit, not just the unit's own kind: the
+  /// keys could tell a process and a group apart, but a copy must never put
+  /// two cards with the same label on the dashboard (ADR 006).
   String _uniqueName(String base) {
     final existing = _units.map((u) => u.name).toSet();
     if (!existing.contains(base)) return base;

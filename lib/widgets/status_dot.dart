@@ -38,3 +38,32 @@ class StatusDot extends StatelessWidget {
     );
   }
 }
+
+/// Status dot plus the state label, as shown at the top of a grid card.
+///
+/// Shared by the process and service grid tiles so both kinds render their
+/// state the same way: dot, a short gap, then the label in [statusColor].
+class StateLabel extends StatelessWidget {
+  final ProcState state;
+
+  const StateLabel({super.key, required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        StatusDot(state: state),
+        const SizedBox(width: 6),
+        Text(
+          state.label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: statusColor(state),
+          ),
+        ),
+      ],
+    );
+  }
+}

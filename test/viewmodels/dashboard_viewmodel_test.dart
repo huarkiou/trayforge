@@ -5,6 +5,7 @@ import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
+
 import '../helpers/service_fakes.dart';
 import '../helpers/test_mocks.dart';
 
@@ -49,9 +50,9 @@ void main() {
       final vm = build();
 
       expect(vm.isEmpty, true);
-      expect(vm.entries, isEmpty);
-      expect(vm.processViewModels, isEmpty);
-      expect(vm.serviceViewModels, isEmpty);
+      expect(vm.units, isEmpty);
+      expect(vm.units.whereType<ProcessUnit>(), isEmpty);
+      expect(vm.units.whereType<ServiceUnit>(), isEmpty);
     });
 
     test('isEmpty is true when config has no units', () {
@@ -64,7 +65,7 @@ void main() {
 
     // ---- Populated state ----
 
-    test('creates one entry per configured unit, in config order', () {
+    test('creates one unit per configured unit, in config order', () {
       writeConfig(
         tmpDir,
         const AppConfig(
@@ -80,13 +81,14 @@ void main() {
       final vm = build();
 
       expect(vm.isEmpty, false);
-      expect(vm.entries.map((e) => e.name), ['svc-a', 'group-a', 'svc-b']);
-      expect(vm.entries[0], isA<ProcessEntry>());
-      expect(vm.entries[1], isA<ServiceEntry>());
-      expect(vm.entries[2], isA<ProcessEntry>());
-      expect(vm.entries[1].id, 'svc:group-a');
-      expect(vm.processViewModels.length, 2);
-      expect(vm.serviceViewModels.single.name, 'group-a');
+      expect(vm.units.map((u) => u.name), ['svc-a', 'group-a', 'svc-b']);
+      expect(vm.units[0], isA<ProcessUnit>());
+      expect(vm.units[1], isA<ServiceUnit>());
+      expect(vm.units[2], isA<ProcessUnit>());
+      expect(vm.units[1].id, 'svc:group-a');
+      expect(vm.units[0].id, 'proc:svc-a');
+      expect(vm.units.whereType<ProcessUnit>().length, 2);
+      expect(vm.units.whereType<ServiceUnit>().single.name, 'group-a');
     });
 
     // ---- Config changed ----
@@ -101,7 +103,7 @@ void main() {
 
       final vm = build();
 
-      expect(vm.entries.length, 1);
+      expect(vm.units.length, 1);
 
       // Save new config with an additional process.
       final newConfig = const AppConfig(
@@ -115,7 +117,7 @@ void main() {
       // Fire onConfigReloaded through ProcessManager.
       await manager.reloadConfig(newConfig);
 
-      expect(vm.entries.map((e) => e.name), ['svc-a', 'svc-b']);
+      expect(vm.units.map((u) => u.name), ['svc-a', 'svc-b']);
     });
 
     test('rebuilds when the service manager reloads the config', () async {
@@ -127,7 +129,7 @@ void main() {
       );
 
       final vm = build();
-      expect(vm.serviceViewModels, isEmpty);
+      expect(vm.units.whereType<ServiceUnit>(), isEmpty);
 
       configStore.save(
         const AppConfig(
@@ -139,8 +141,8 @@ void main() {
       );
       services.emitConfigReloaded();
 
-      expect(vm.entries.map((e) => e.name), ['svc-a', 'group-a']);
-      expect(vm.serviceViewModels.single.name, 'group-a');
+      expect(vm.units.map((u) => u.name), ['svc-a', 'group-a']);
+      expect(vm.units.whereType<ServiceUnit>().single.name, 'group-a');
     });
 
     test('switches to empty when config removes all units', () async {
@@ -227,8 +229,8 @@ void main() {
 
       final vm = build();
 
-      final process = vm.processViewModels[0];
-      final service = vm.serviceViewModels[0];
+      final process = vm.units.whereType<ProcessUnit>().single.viewModel;
+      final service = vm.units.whereType<ServiceUnit>().single.viewModel;
 
       // Save a config with the same names, then fire onConfigReloaded.
       final newConfig = const AppConfig(
@@ -241,11 +243,17 @@ void main() {
       await manager.reloadConfig(newConfig);
 
       // The same VM instances should be reused (identity check).
-      expect(identical(vm.processViewModels[0], process), true);
-      expect(identical(vm.serviceViewModels[0], service), true);
+      expect(
+        identical(vm.units.whereType<ProcessUnit>().single.viewModel, process),
+        true,
+      );
+      expect(
+        identical(vm.units.whereType<ServiceUnit>().single.viewModel, service),
+        true,
+      );
     });
 
-    test('reorders entries without rebuilding the view models', () async {
+    test('reorders units without rebuilding the view models', () async {
       writeConfig(
         tmpDir,
         const AppConfig(
@@ -257,7 +265,7 @@ void main() {
       );
 
       final vm = build();
-      final process = vm.processViewModels[0];
+      final process = vm.units.whereType<ProcessUnit>().single.viewModel;
 
       final reordered = const AppConfig(
         units: [
@@ -268,8 +276,87 @@ void main() {
       configStore.save(reordered);
       await manager.reloadConfig(reordered);
 
-      expect(vm.entries.map((e) => e.id), ['svc:group-a', 'proc:svc-a']);
-      expect(identical(vm.processViewModels[0], process), true);
+      expect(vm.units.map((u) => u.id), ['svc:group-a', 'proc:svc-a']);
+      expect(
+        identical(vm.units.whereType<ProcessUnit>().single.viewModel, process),
+        true,
+      );
+    });
+
+    // ---- orderedBy ----
+
+    test('orderedBy follows the given order', () {
+      writeConfig(
+        tmpDir,
+        const AppConfig(
+          units: [
+            ProcessConfig(name: 'p-a', cmd: 'a.exe'),
+            ServiceConfig(name: 'group-a', services: ['A']),
+            ProcessConfig(name: 'p-b', cmd: 'b.exe'),
+          ],
+        ),
+      );
+
+      final vm = build();
+
+      final ordered = vm.orderedBy(const <UnitConfig>[
+        ProcessConfig(name: 'p-b', cmd: 'b.exe'),
+        ProcessConfig(name: 'p-a', cmd: 'a.exe'),
+        ServiceConfig(name: 'group-a', services: ['A']),
+      ]);
+
+      expect(ordered.map((u) => u.id), ['proc:p-b', 'proc:p-a', 'svc:group-a']);
+
+      // The view model's own list is not rewritten by a read.
+      expect(vm.units.map((u) => u.id), [
+        'proc:p-a',
+        'svc:group-a',
+        'proc:p-b',
+      ]);
+    });
+
+    test('orderedBy keeps units missing from the order at the end', () {
+      writeConfig(
+        tmpDir,
+        const AppConfig(
+          units: [
+            ProcessConfig(name: 'p-a', cmd: 'a.exe'),
+            ServiceConfig(name: 'group-a', services: ['A']),
+            ProcessConfig(name: 'p-b', cmd: 'b.exe'),
+          ],
+        ),
+      );
+
+      final vm = build();
+
+      final ordered = vm.orderedBy(const <UnitConfig>[
+        ProcessConfig(name: 'p-b', cmd: 'b.exe'),
+      ]);
+
+      expect(ordered.map((u) => u.id), ['proc:p-b', 'proc:p-a', 'svc:group-a']);
+    });
+
+    test('orderedBy ignores order entries with no view model yet', () {
+      writeConfig(
+        tmpDir,
+        const AppConfig(
+          units: [
+            ProcessConfig(name: 'p-a', cmd: 'a.exe'),
+            ServiceConfig(name: 'group-a', services: ['A']),
+            ProcessConfig(name: 'p-b', cmd: 'b.exe'),
+          ],
+        ),
+      );
+
+      final vm = build();
+
+      final ordered = vm.orderedBy(const <UnitConfig>[
+        ProcessConfig(name: 'not-built', cmd: 'x.exe'),
+        ProcessConfig(name: 'p-b', cmd: 'b.exe'),
+      ]);
+
+      expect(ordered.map((u) => u.id), ['proc:p-b', 'proc:p-a', 'svc:group-a']);
+      expect(ordered, hasLength(3));
     });
 
     test('disposes ViewModels for removed units', () async {
@@ -285,15 +372,15 @@ void main() {
 
       final vm = build();
 
-      final process = vm.processViewModels[0];
-      final service = vm.serviceViewModels[0];
+      final process = vm.units.whereType<ProcessUnit>().single.viewModel;
+      final service = vm.units.whereType<ServiceUnit>().single.viewModel;
 
       // Save a config without the units, then fire onConfigReloaded.
       const emptyConfig = AppConfig();
       configStore.save(emptyConfig);
       await manager.reloadConfig(emptyConfig);
 
-      expect(vm.entries, isEmpty);
+      expect(vm.units, isEmpty);
 
       // The old VMs should be safe to call addListener on (disposed but no-op).
       // This verifies that dispose was called.

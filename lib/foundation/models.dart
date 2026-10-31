@@ -35,6 +35,35 @@ extension ProcStateX on ProcState {
 /// The layout mode of the Dashboard process list.
 enum DashboardLayout { list, grid }
 
+/// The two kinds of unit, and the strings each kind is known by.
+///
+/// One vocabulary, three uses: the `kind` discriminator in `config.json`, the
+/// human label in validation messages, and the prefix of the stable ids the
+/// dashboard and tray key their cards and menu items by.
+enum UnitKind {
+  process('process', 'Process', 'proc:'),
+  service('service', 'Service group', 'svc:');
+
+  const UnitKind(this.jsonValue, this.label, this.keyPrefix);
+
+  /// The `kind` value in `config.json`.
+  final String jsonValue;
+
+  /// Human label, used in validation messages.
+  final String label;
+
+  /// Prefix of the stable ids the dashboard and tray use (`proc:<name>`).
+  final String keyPrefix;
+
+  /// Parses a JSON `kind`, or `null` when it is not one of the two.
+  static UnitKind? tryParse(String value) {
+    for (final kind in UnitKind.values) {
+      if (kind.jsonValue == value) return kind;
+    }
+    return null;
+  }
+}
+
 /// One dashboard unit: whatever TrayForge shows as a single card and manages
 /// as one thing.
 ///
@@ -44,8 +73,21 @@ enum DashboardLayout { list, grid }
 sealed class UnitConfig {
   const UnitConfig();
 
-  /// Display name; unique within its kind.
+  /// Which kind of unit this is.
+  UnitKind get kind;
+
+  /// Display name.
+  ///
+  /// Names are unique within their kind. Cards and menu items are keyed by
+  /// kind + name ([UnitKind.keyPrefix] followed by the name), so a process and
+  /// a service group may share a label without colliding.
   String get name;
+
+  /// The kind-specific fields, without the `kind` discriminator.
+  ///
+  /// [AppConfig] adds `kind` when writing the units array; a unit serialized on
+  /// its own has no kind to declare.
+  Map<String, dynamic> toJson();
 
   /// A copy of this unit carrying [newName].
   ///
@@ -101,6 +143,10 @@ class ProcessConfig extends UnitConfig {
     this.logFile,
   });
 
+  @override
+  UnitKind get kind => UnitKind.process;
+
+  @override
   Map<String, dynamic> toJson() => {
     'name': name,
     if (cwd != null) 'cwd': cwd,
@@ -204,6 +250,10 @@ class ServiceConfig extends UnitConfig {
     this.stopDependents = false,
   });
 
+  @override
+  UnitKind get kind => UnitKind.service;
+
+  @override
   Map<String, dynamic> toJson() => {
     'name': name,
     'services': services,
@@ -317,16 +367,9 @@ class AppConfig {
     'output_refresh_ms': outputRefreshMs,
     'service_poll_ms': servicePollMs,
     'dashboard_layout': dashboardLayout.name,
-    'units': units.map(_unitToJson).toList(),
-  };
-
-  /// Serializes one unit with its `kind` discriminator.
-  ///
-  /// The kind lives here, not in the per-kind config classes: a
-  /// [ProcessConfig] written outside a units array has no kind to declare.
-  static Map<String, dynamic> _unitToJson(UnitConfig unit) => switch (unit) {
-    ProcessConfig p => {'kind': 'process', ...p.toJson()},
-    ServiceConfig s => {'kind': 'service', ...s.toJson()},
+    'units': units
+        .map((unit) => {'kind': unit.kind.jsonValue, ...unit.toJson()})
+        .toList(),
   };
 
   factory AppConfig.fromJson(Map<String, dynamic> json) {
@@ -364,18 +407,24 @@ class AppConfig {
   ///
   /// `kind` is optional so a hand-written entry can omit it; the entry's shape
   /// then decides (`services` → service group, otherwise a process). An
-  /// unknown kind is a config we cannot interpret, so it fails like any other
-  /// parse error and [ConfigStore] backs the file up.
+  /// explicit kind wins over the shape, and an unknown kind is a config we
+  /// cannot interpret, so it fails like any other parse error and
+  /// [ConfigStore] backs the file up.
   static UnitConfig _parseUnit(Map<String, dynamic> json) {
-    final kind = json['kind'];
-    if (kind == null) {
+    final rawKind = json['kind'];
+    if (rawKind == null) {
       return json.containsKey('services')
           ? ServiceConfig.fromJson(json)
           : ProcessConfig.fromJson(json);
     }
-    if (kind == 'process') return ProcessConfig.fromJson(json);
-    if (kind == 'service') return ServiceConfig.fromJson(json);
-    throw FormatException('Unknown unit kind: $kind');
+
+    final kind = rawKind is String ? UnitKind.tryParse(rawKind) : null;
+    if (kind == null) throw FormatException('Unknown unit kind: $rawKind');
+
+    return switch (kind) {
+      UnitKind.process => ProcessConfig.fromJson(json),
+      UnitKind.service => ServiceConfig.fromJson(json),
+    };
   }
 
   /// Parses a JSON value that should be a [DashboardLayout] name.

@@ -192,7 +192,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
     final config = _buildConfig();
     final vm = widget.settingsViewModel;
 
-    final vmError = vm.validateConfig(config);
+    final vmError = vm.validateUnit(config);
     if (vmError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(vmError), backgroundColor: Colors.red),
@@ -203,9 +203,9 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
     final wasRunning = widget.isEditing && vm.isRunning(config.name);
 
     if (widget.isEditing) {
-      vm.editProcess(widget.editIndex!, config);
+      vm.editUnit(widget.editIndex!, config);
     } else {
-      vm.addProcess(config);
+      vm.addUnit(config);
     }
 
     if (wasRunning) {

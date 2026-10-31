@@ -107,8 +107,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   icon: const Icon(Icons.add),
                   tooltip: 'Add',
                   onSelected: (kind) => switch (kind) {
-                    _AddKind.process => _openAddProcessPage(context),
-                    _AddKind.serviceGroup => _openAddServicePage(context),
+                    _AddKind.process => _addProcess(),
+                    _AddKind.serviceGroup => _addServiceGroup(),
                   },
                   itemBuilder: (context) => const [
                     PopupMenuItem(
@@ -163,12 +163,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             alignment: WrapAlignment.center,
             children: [
               FilledButton.icon(
-                onPressed: canEdit ? () => _openAddProcessPage(context) : null,
+                onPressed: canEdit ? _addProcess : null,
                 icon: const Icon(Icons.add),
                 label: const Text('Add Process'),
               ),
               OutlinedButton.icon(
-                onPressed: canEdit ? () => _openAddServicePage(context) : null,
+                onPressed: canEdit ? _addServiceGroup : null,
                 icon: const Icon(Icons.dns_outlined),
                 label: const Text('Add Service Group'),
               ),
@@ -188,31 +188,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return _buildListBody(context);
   }
 
+  /// The cards to render, in the settings view model's current order.
+  ///
+  /// A reorder is persisted without reloading the managers, so the dashboard
+  /// view model is not rebuilt by a drag; [DashboardViewModel.orderedBy]
+  /// applies the newer settings order immediately, without a second ordering
+  /// list in the screen.
+  List<DashboardUnit> get _units => widget.settingsViewModel == null
+      ? widget.viewModel.units
+      : widget.viewModel.orderedBy(widget.settingsViewModel!.units);
+
   Widget _buildListBody(BuildContext context) {
-    final entries = widget.viewModel.entries;
+    final units = _units;
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: entries.length,
+      itemCount: units.length,
       buildDefaultDragHandles: false,
       onReorderItem: (oldIndex, newIndex) {
         widget.settingsViewModel?.reorderItem(oldIndex, newIndex);
       },
       itemBuilder: (context, index) {
-        final entry = entries[index];
+        final unit = units[index];
         // Long-press anywhere on the card to start a reorder drag;
         // quick taps pass through to the card's own handlers.
         return ReorderableDelayedDragStartListener(
-          key: ValueKey(entry.id),
+          key: ValueKey(unit.id),
           index: index,
-          child: switch (entry) {
-            ProcessEntry(:final viewModel) => ProcessCard(
+          child: switch (unit) {
+            ProcessUnit(:final viewModel) => ProcessCard(
               viewModel: viewModel,
-              onEditTap: () => _openEditProcess(context, viewModel.name),
+              onEditTap: () => _editProcess(viewModel.name),
               onTap: () => _openProcessDetail(context, viewModel),
             ),
-            ServiceEntry(:final viewModel) => ServiceCard(
+            ServiceUnit(:final viewModel) => ServiceCard(
               viewModel: viewModel,
-              onEditTap: () => _openEditService(context, viewModel.name),
+              onEditTap: () => _editServiceGroup(viewModel.name),
               onTap: () => _openServiceDetail(context, viewModel),
             ),
           },
@@ -228,10 +238,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// pre-adjusted index contract as `ReorderableListView.onReorderItem`),
   /// so the entities pass through to the settings reorder path unchanged.
   Widget _buildGridBody(BuildContext context) {
-    final entries = widget.viewModel.entries;
+    final units = _units;
     return ReorderableBuilder.builder(
       scrollController: _gridScrollController,
-      itemCount: entries.length,
+      itemCount: units.length,
       onReorderPositions: (entities) {
         for (final entity in entities) {
           widget.settingsViewModel?.reorderItem(
@@ -253,20 +263,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // shorter than a square tile, with room left for a WebUI URL.
           childAspectRatio: 1.13,
         ),
-        itemCount: entries.length,
+        itemCount: units.length,
         itemBuilder: (context, index) {
-          final entry = entries[index];
-          return itemBuilder(switch (entry) {
-            ProcessEntry(:final viewModel) => ProcessGridCard(
-              key: ValueKey(entry.id),
+          final unit = units[index];
+          return itemBuilder(switch (unit) {
+            ProcessUnit(:final viewModel) => ProcessGridCard(
+              key: ValueKey(unit.id),
               viewModel: viewModel,
-              onEditTap: () => _openEditProcess(context, viewModel.name),
+              onEditTap: () => _editProcess(viewModel.name),
               onTap: () => _openProcessDetail(context, viewModel),
             ),
-            ServiceEntry(:final viewModel) => ServiceGridCard(
-              key: ValueKey(entry.id),
+            ServiceUnit(:final viewModel) => ServiceGridCard(
+              key: ValueKey(unit.id),
               viewModel: viewModel,
-              onEditTap: () => _openEditService(context, viewModel.name),
+              onEditTap: () => _editServiceGroup(viewModel.name),
               onTap: () => _openServiceDetail(context, viewModel),
             ),
           }, index);
@@ -287,7 +297,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       MaterialPageRoute(
         builder: (_) => ProcessDetailPage(
           viewModel: vm,
-          onEditTap: () => _openEditProcess(context, vm.name),
+          onEditTap: () => _editProcess(vm.name),
         ),
       ),
     );
@@ -299,7 +309,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       MaterialPageRoute(
         builder: (_) => ServiceDetailPage(
           viewModel: vm,
-          onEditTap: () => _openEditService(context, vm.name),
+          onEditTap: () => _editServiceGroup(vm.name),
         ),
       ),
     );
@@ -307,21 +317,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // ---- Add / edit navigation ----
 
-  void _openAddProcessPage(BuildContext context) {
-    _openProcessEdit(context, null, null);
-  }
+  void _addProcess() => _pushProcessForm(context, null, null);
 
-  void _openEditProcess(BuildContext context, String name) {
+  void _editProcess(String name) {
     final settings = widget.settingsViewModel;
     if (settings == null) return;
     final index = settings.units.indexWhere(
       (u) => u is ProcessConfig && u.name == name,
     );
     if (index == -1) return;
-    _openProcessEdit(context, settings.units[index] as ProcessConfig, index);
+    _pushProcessForm(context, settings.units[index] as ProcessConfig, index);
   }
 
-  void _openProcessEdit(
+  void _pushProcessForm(
     BuildContext context,
     ProcessConfig? initial,
     int? editIndex,
@@ -341,21 +349,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  void _openAddServicePage(BuildContext context) {
-    _openServiceEdit(context, null, null);
-  }
+  void _addServiceGroup() => _pushServiceForm(context, null, null);
 
-  void _openEditService(BuildContext context, String name) {
+  void _editServiceGroup(String name) {
     final settings = widget.settingsViewModel;
     if (settings == null) return;
     final index = settings.units.indexWhere(
       (u) => u is ServiceConfig && u.name == name,
     );
     if (index == -1) return;
-    _openServiceEdit(context, settings.units[index] as ServiceConfig, index);
+    _pushServiceForm(context, settings.units[index] as ServiceConfig, index);
   }
 
-  void _openServiceEdit(
+  void _pushServiceForm(
     BuildContext context,
     ServiceConfig? initial,
     int? editIndex,

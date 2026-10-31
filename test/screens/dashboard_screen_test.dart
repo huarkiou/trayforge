@@ -417,7 +417,7 @@ void main() {
       // And the new order plus the carried layout persisted.
       final saved = h.store.lastSaved;
       expect(saved, isNotNull);
-      expect(saved!.processes.map((p) => p.name), ['svc-b', 'svc-a']);
+      expect(saved!.units.map((u) => u.name), ['svc-b', 'svc-a']);
       expect(saved.dashboardLayout, DashboardLayout.list);
     });
 
@@ -450,7 +450,7 @@ void main() {
 
       final saved = h.store.lastSaved;
       expect(saved, isNotNull);
-      expect(saved!.processes.map((p) => p.name), ['svc-b', 'svc-a']);
+      expect(saved!.units.map((u) => u.name), ['svc-b', 'svc-a']);
     });
 
     // ---- Layout toggle ----
@@ -568,7 +568,7 @@ void main() {
       // And the new order plus the carried layout persisted.
       final saved = h.store.lastSaved;
       expect(saved, isNotNull);
-      expect(saved!.processes.map((p) => p.name), ['svc-b', 'svc-a']);
+      expect(saved!.units.map((u) => u.name), ['svc-b', 'svc-a']);
       expect(saved.dashboardLayout, DashboardLayout.grid);
     });
 
@@ -604,7 +604,7 @@ void main() {
 
       final saved = h.store.lastSaved;
       expect(saved, isNotNull);
-      expect(saved!.processes.map((p) => p.name), ['svc-b', 'svc-a']);
+      expect(saved!.units.map((u) => u.name), ['svc-b', 'svc-a']);
     });
 
     testWidgets('dragging near the grid edge auto-scrolls', (tester) async {
@@ -826,7 +826,7 @@ void main() {
       expect(saved!.dashboardLayout, DashboardLayout.grid);
       expect(saved.outputRefreshMs, 300);
       expect(saved.outputHistoryLimit, 500);
-      expect(saved.processes.map((p) => p.name), ['svc-a']);
+      expect(saved.units.map((u) => u.name), ['svc-a']);
     });
 
     testWidgets('toggle button still works on cards', (tester) async {
@@ -895,6 +895,28 @@ void main() {
       expect(find.text('No activity yet'), findsOneWidget);
     });
 
+    testWidgets('the group detail page shows members as selectable text', (
+      tester,
+    ) async {
+      final h = await pumpDashboard(tester, config: mixed);
+
+      // The detail page renders the member rows once the group has a status
+      // snapshot (the card's dense rows are plain Text; the page's are not).
+      h.svc.emitStatuses('Licenses', members);
+      await tester.pump();
+
+      await tester.tap(find.text('Licenses'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ServiceDetailPage), findsOneWidget);
+      for (final name in ['FLEXnet', 'Tomcat']) {
+        expect(
+          find.byWidgetPredicate((w) => w is SelectableText && w.data == name),
+          findsOneWidget,
+        );
+      }
+    });
+
     testWidgets('the group toggle drives the group, not the process', (
       tester,
     ) async {
@@ -910,6 +932,29 @@ void main() {
 
       expect(h.svc.toggled, ['Licenses']);
       expect(h.pm.toggled, isEmpty);
+    });
+
+    testWidgets('a crashed group with a running member still offers Stop', (
+      tester,
+    ) async {
+      final h = await pumpDashboard(tester, config: mixed);
+
+      // Aggregate state says crashed, but a member is still up: the button
+      // follows isUp (what the toggle would do), not state.isActive.
+      h.svc.emitState('Licenses', ProcState.crashed);
+      h.svc.emitStatuses('Licenses', const [
+        ServiceStatus('FLEXnet', ServiceState.running),
+        ServiceStatus('Tomcat', ServiceState.stopped),
+      ]);
+      await tester.pump();
+
+      expect(find.byIcon(Icons.stop_circle_outlined), findsOneWidget);
+      expect(find.byTooltip('Stop services'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.stop_circle_outlined));
+      await tester.pump();
+
+      expect(h.svc.toggled, ['Licenses']);
     });
 
     testWidgets('the group edit icon opens the group form', (tester) async {
@@ -983,6 +1028,48 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(ServiceDetailPage), findsOneWidget);
+    });
+
+    testWidgets('grid drag moves a group tile above a process and persists', (
+      tester,
+    ) async {
+      final h = await pumpDashboard(
+        tester,
+        config: const AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          units: [
+            ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            ServiceConfig(name: 'Licenses', services: ['FLEXnet', 'Tomcat']),
+            ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+          ],
+        ),
+      );
+
+      // Let the grid's entrance fade-in finish before dragging (the package
+      // records each tile's original index a couple of frames in).
+      await tester.pumpAndSettle();
+
+      // Drag the group tile (second cell) left onto the process tile: the
+      // drop index only advances while the pointer is inside the target
+      // tile's bounds, so aim just left of its center.
+      await longPressDrag(
+        tester,
+        tester.getCenter(find.text('Licenses')),
+        tester.getCenter(find.text('svc-a')) + const Offset(-40, 0),
+      );
+
+      // The grid moved the group ahead of the process...
+      expect(
+        tester.getTopLeft(find.text('Licenses')).dx,
+        lessThan(tester.getTopLeft(find.text('svc-a')).dx),
+      );
+
+      // ...and the new cross-kind order persisted.
+      final saved = h.store.lastSaved;
+      expect(saved, isNotNull);
+      expect(saved!.units.map((u) => u.name), ['Licenses', 'svc-a', 'svc-b']);
+      expect(saved.units.first, isA<ServiceConfig>());
+      expect(saved.dashboardLayout, DashboardLayout.grid);
     });
   });
 }

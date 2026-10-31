@@ -16,6 +16,7 @@ import '../helpers/test_mocks.dart';
 void main() {
   late Directory tmpDir;
   late ConfigStore configStore;
+  late MockProcessRunner mockRunner;
   late ProcessManager processManager;
   late ServiceManager serviceManager;
   late FakeServiceHost host;
@@ -35,9 +36,10 @@ void main() {
     );
     writeConfig(tmpDir, config);
 
+    mockRunner = MockProcessRunner();
     processManager = ProcessManager(
       configStore: configStore,
-      processRunner: MockProcessRunner(),
+      processRunner: mockRunner,
       dataDir: tmpDir.path,
     );
     await processManager.init();
@@ -68,8 +70,11 @@ void main() {
   group('SettingsViewModel', () {
     test('loaded units are exposed in order', () {
       expect(viewModel.units.map((u) => u.name), ['proc', 'Licenses']);
-      expect(viewModel.processes.single.name, 'proc');
-      expect(viewModel.services.single.name, 'Licenses');
+      expect(viewModel.units.whereType<ProcessConfig>().single.name, 'proc');
+      expect(
+        viewModel.units.whereType<ServiceConfig>().single.name,
+        'Licenses',
+      );
       expect(viewModel.servicePollMs, 5000);
     });
 
@@ -82,9 +87,7 @@ void main() {
     });
 
     test('adding a process appends it after the existing units', () {
-      viewModel.addProcess(
-        const ProcessConfig(name: 'second', cmd: 'other.exe'),
-      );
+      viewModel.addUnit(const ProcessConfig(name: 'second', cmd: 'other.exe'));
 
       final saved = configStore.load()!;
       expect(saved.units.map((u) => u.name), ['proc', 'Licenses', 'second']);
@@ -92,9 +95,7 @@ void main() {
     });
 
     test('adding a service persists it and reloads the manager', () async {
-      viewModel.addService(
-        const ServiceConfig(name: 'Spooler', services: ['A']),
-      );
+      viewModel.addUnit(const ServiceConfig(name: 'Spooler', services: ['A']));
 
       final saved = configStore.load()!;
       expect(saved.units.map((u) => u.name), ['proc', 'Licenses', 'Spooler']);
@@ -114,7 +115,7 @@ void main() {
     });
 
     test('editing a process keeps the unit position', () {
-      viewModel.editProcess(
+      viewModel.editUnit(
         0,
         const ProcessConfig(name: 'proc', cmd: 'edited.exe'),
       );
@@ -125,7 +126,7 @@ void main() {
     });
 
     test('editing a service group keeps the unit position', () {
-      viewModel.editService(
+      viewModel.editUnit(
         1,
         const ServiceConfig(name: 'Licenses', services: ['A', 'B']),
       );
@@ -143,6 +144,37 @@ void main() {
       expect(saved.units[0], isA<ServiceConfig>());
       expect(saved.units[1], isA<ProcessConfig>());
     });
+
+    test(
+      'reorderItem persists the order without reloading the managers',
+      () async {
+        // An autostart process: reloadConfig would start it again from `stopped`.
+        writeConfig(
+          tmpDir,
+          const AppConfig(
+            units: [
+              ProcessConfig(name: 'auto', cmd: 'auto.exe', autostart: true),
+              ProcessConfig(name: 'manual', cmd: 'manual.exe'),
+            ],
+          ),
+        );
+        mockRunner.nextHandle = MockProcessHandle(pid: 9001);
+        await processManager.reloadConfig(configStore.load()!);
+        expect(processManager.getState('auto'), ProcState.running);
+
+        // Stop the autostarted process by hand; a drag must leave it stopped.
+        await processManager.stop('auto');
+        expect(processManager.getState('auto'), ProcState.stopped);
+        final startsBefore = mockRunner.starts.length;
+
+        viewModel.reorderItem(0, 1);
+
+        final saved = configStore.load()!;
+        expect(saved.units.map((u) => u.name), ['manual', 'auto']);
+        expect(processManager.getState('auto'), ProcState.stopped);
+        expect(mockRunner.starts.length, startsBefore);
+      },
+    );
 
     test('copying a service group inserts it right after itself', () {
       viewModel.copyUnit(1);
@@ -209,27 +241,36 @@ void main() {
         final reloaded = await viewModel.reloadFromDisk();
 
         expect(reloaded, isFalse);
-        expect(viewModel.services.single.name, 'Licenses');
+        expect(
+          viewModel.units.whereType<ServiceConfig>().single.name,
+          'Licenses',
+        );
       },
     );
 
-    test('invalid service configs are rejected', () {
+    test('invalid unit configs are rejected', () {
       expect(
-        viewModel.validateServiceConfig(
+        viewModel.validateUnit(
           const ServiceConfig(name: 'x/y', services: ['A']),
         ),
         isNotNull,
       );
       expect(
-        viewModel.validateServiceConfig(
-          const ServiceConfig(name: 'ok', services: []),
-        ),
+        viewModel.validateUnit(const ServiceConfig(name: 'ok', services: [])),
         isNotNull,
       );
       expect(
-        viewModel.validateServiceConfig(
+        viewModel.validateUnit(
           const ServiceConfig(name: 'ok', services: ['A']),
         ),
+        isNull,
+      );
+      expect(
+        viewModel.validateUnit(const ProcessConfig(name: '', cmd: 'run')),
+        isNotNull,
+      );
+      expect(
+        viewModel.validateUnit(const ProcessConfig(name: 'ok', cmd: 'run')),
         isNull,
       );
     });

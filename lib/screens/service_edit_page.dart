@@ -62,7 +62,7 @@ class _ServiceEditPageState extends State<ServiceEditPage> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final config = _buildConfig();
-    final error = widget.settingsViewModel.validateServiceConfig(config);
+    final error = widget.settingsViewModel.validateUnit(config);
     if (error != null) {
       // Surface the rejection instead of letting ConfigStore throw.
       if (mounted) {
@@ -74,9 +74,9 @@ class _ServiceEditPageState extends State<ServiceEditPage> {
     }
 
     if (widget.isEditing) {
-      widget.settingsViewModel.editService(widget.editIndex!, config);
+      widget.settingsViewModel.editUnit(widget.editIndex!, config);
     } else {
-      widget.settingsViewModel.addService(config);
+      widget.settingsViewModel.addUnit(config);
     }
     if (mounted) Navigator.of(context).pop();
   }

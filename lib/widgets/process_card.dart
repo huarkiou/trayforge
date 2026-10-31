@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
 import 'package:trayforge/widgets/status_dot.dart';
 import 'package:trayforge/widgets/toggle_button.dart';
@@ -151,20 +150,7 @@ class ProcessGridCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      StatusDot(state: viewModel.state),
-                      const SizedBox(width: 6),
-                      Text(
-                        viewModel.state.label,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: statusColor(viewModel.state),
-                        ),
-                      ),
-                    ],
-                  ),
+                  StateLabel(state: viewModel.state),
                   const SizedBox(height: 6),
                   Text(
                     viewModel.name,

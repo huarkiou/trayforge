@@ -113,6 +113,32 @@ void main() {
             .toList();
         expect(backups.length, 1);
       });
+
+      test('treats an unknown unit kind as a corrupted config', () {
+        final configPath = '${tmpDir.path}/config.json';
+        File(configPath).writeAsStringSync(
+          jsonEncode({
+            'units': [
+              {'name': 'p1', 'cmd': 'c1'},
+              {'kind': 'contraband', 'name': 'x'},
+            ],
+          }),
+          flush: true,
+        );
+
+        final result = store.load();
+        expect(result, isNull);
+
+        final backupsDir = Directory('${tmpDir.path}/backups');
+        expect(backupsDir.existsSync(), isTrue);
+        final backups = backupsDir
+            .listSync()
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.corrupted.json'))
+            .toList();
+        expect(backups.length, 1);
+        expect(backups.single.readAsStringSync(), contains('contraband'));
+      });
     });
 
     // ---- save() ----

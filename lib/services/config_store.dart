@@ -74,7 +74,7 @@ class ConfigStore {
   /// - a [ProcessConfig.webuiPattern] is non-null and not a valid regex
   /// - a [ServiceConfig] has no services
   void validate(UnitConfig unit) {
-    _validateName(unit.name, what: _kindLabel(unit));
+    _validateName(unit.name, what: unit.kind.label);
 
     switch (unit) {
       case ProcessConfig(:final webuiPattern):
@@ -103,12 +103,6 @@ class ConfigStore {
       throw ArgumentError('$what name "$name" must not contain / or \\');
     }
   }
-
-  /// The human label for a unit's kind, used in validation messages.
-  static String _kindLabel(UnitConfig unit) => switch (unit) {
-    ProcessConfig() => 'Process',
-    ServiceConfig() => 'Service group',
-  };
 
   // ---- Private helpers ----
 

@@ -20,9 +20,10 @@ class ServiceToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The button offers what the *live* group state says, so it has to follow
-    // the view model itself: the card and the detail AppBar both place it
-    // outside their own ListenableBuilders.
+    // The button owns its listener because the detail page's AppBar places it
+    // outside any builder of its own. The cards already rebuild around it, so
+    // the nested rebuild there is harmless — the AppBar is the reason it must
+    // listen at all.
     return ListenableBuilder(
       listenable: viewModel,
       builder: (context, _) {
@@ -56,6 +57,43 @@ class ServiceToggleButton extends StatelessWidget {
   }
 }
 
+/// Action buttons shared by the List card header and the Grid tile:
+/// start/stop toggle plus the optional edit button.
+class ServiceCardActions extends StatelessWidget {
+  final ServiceViewModel viewModel;
+  final VoidCallback? onEditTap;
+
+  /// Smaller icons and a tighter hit box, used by the compact grid tile.
+  final bool compact;
+
+  const ServiceCardActions({
+    super.key,
+    required this.viewModel,
+    this.onEditTap,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final editButton = onEditTap != null
+        ? IconButton(
+            icon: Icon(Icons.edit, size: compact ? 20 : null),
+            tooltip: 'Edit service group',
+            onPressed: onEditTap,
+            visualDensity: compact ? VisualDensity.compact : null,
+          )
+        : null;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ServiceToggleButton(viewModel: viewModel, compact: compact),
+        if (editButton != null) ...[const SizedBox(width: 4), editButton],
+      ],
+    );
+  }
+}
+
 /// Card for one service group: aggregate state, per-service detail, actions.
 class ServiceCard extends StatelessWidget {
   final ServiceViewModel viewModel;
@@ -72,7 +110,10 @@ class ServiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Follows the view model: state, member rows and the operation log all
-    // change after the card is first built.
+    // change after the card is first built. The nested listener inside
+    // [ServiceToggleButton] is intentional (the detail AppBar needs it), not a
+    // second cancellation trick: the card rebuilds its own contents, the
+    // button rebuilds only itself.
     return ListenableBuilder(
       listenable: viewModel,
       builder: (context, _) => Card(
@@ -108,13 +149,10 @@ class ServiceCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    ServiceToggleButton(viewModel: viewModel),
-                    if (onEditTap != null)
-                      IconButton(
-                        icon: const Icon(Icons.edit),
-                        tooltip: 'Edit service group',
-                        onPressed: onEditTap,
-                      ),
+                    ServiceCardActions(
+                      viewModel: viewModel,
+                      onEditTap: onEditTap,
+                    ),
                   ],
                 ),
                 if (viewModel.statuses.isNotEmpty) ...[
@@ -163,20 +201,7 @@ class ServiceGridCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      StatusDot(state: viewModel.state),
-                      const SizedBox(width: 6),
-                      Text(
-                        viewModel.state.label,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: statusColor(viewModel.state),
-                        ),
-                      ),
-                    ],
-                  ),
+                  StateLabel(state: viewModel.state),
                   const SizedBox(height: 6),
                   Text(
                     viewModel.name,
@@ -200,14 +225,11 @@ class ServiceGridCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      ServiceToggleButton(viewModel: viewModel, compact: true),
-                      if (onEditTap != null)
-                        IconButton(
-                          icon: const Icon(Icons.edit, size: 20),
-                          tooltip: 'Edit service group',
-                          onPressed: onEditTap,
-                          visualDensity: VisualDensity.compact,
-                        ),
+                      ServiceCardActions(
+                        viewModel: viewModel,
+                        onEditTap: onEditTap,
+                        compact: true,
+                      ),
                     ],
                   ),
                 ],

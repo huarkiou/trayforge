@@ -21,10 +21,10 @@ order was always "all processes, then all services" — a constant, not a choice
 
 1. **`AppConfig.units` is the order.** One list of `UnitConfig`, whose only two
    implementations are `ProcessConfig` and `ServiceConfig` (both already carry
-   `name`). Reordering the dashboard moves an entry in this list; there is no
+   `name`). Reordering the dashboard moves a unit in this list; there is no
    second layout array to keep in sync. `AppConfig.processes` and `.services`
-   survive as derived getters, so `ProcessManager`, `ServiceManager` and the
-   tray keep their existing inputs.
+   survive as derived getters, so `ProcessManager` and `ServiceManager` keep
+   their existing inputs.
 2. **The kind lives in the file, not in the classes.** JSON is flat with a
    discriminator: `{"kind": "process", ...process fields...}` /
    `{"kind": "service", ...group fields...}` inside `units`. A `ProcessConfig`
@@ -33,14 +33,14 @@ order was always "all processes, then all services" — a constant, not a choice
 3. **Old configs migrate on read, not on write.** A file with `processes` +
    `services` and no `units` loads as units in the old visual order (processes
    first). The next save writes `units` only: keeping both spellings would be
-   two sources of truth. A unit entry without `kind` is inferred from its shape
+   two sources of truth. A unit without `kind` is inferred from its shape
    (`services` → group, else process), so hand-edited files stay forgiving; an
    unknown `kind` is treated like any other parse failure (the file is backed
    up).
 4. **One dashboard view model.** `DashboardViewModel` owns both kinds' view
-   models and exposes one ordered `entries` list of `ProcessEntry` /
-   `ServiceEntry`. `ServicesViewModel` is deleted rather than kept as a second
-   producer of the same view models.
+   models and exposes one ordered `units` list of `DashboardUnit`
+   (`ProcessUnit` / `ServiceUnit`). `ServicesViewModel` is deleted rather than
+   kept as a second producer of the same view models.
 5. **Cards keep their kind-specific body.** A process card previews output; a
    group card lists members; the grid gets a compact `ServiceGridCard` beside
    `ProcessGridCard` so both layouts stay consistent. Every card follows its
@@ -54,11 +54,17 @@ order was always "all processes, then all services" — a constant, not a choice
 
 ## Consequences
 
-- One ordering story end to end: dashboard drag → `units` → tray menu, and the
-  next reload of either manager rebuilds the same entries in the same order.
-- Config writes are simpler (one array), but a name is only unique within a
-  kind: card keys and tray keys are prefixed `proc:` / `svc:` so a hand-edited
-  collision degrades to two distinguishable cards instead of a broken list.
+- One ordering story end to end: dashboard drag → `units` → tray menu. A
+  reorder persists the new order and does **not** reload the managers — a
+  reload would run the autostart path and could start a process the user
+  stopped by hand. The dashboard applies the newer order immediately by reading
+  the `settings.units` order through `DashboardViewModel.orderedBy`, and the
+  tray and the next reload of either manager agree because both read the config.
+- Config writes are simpler (one array). Names are unique within a kind, as the
+  model documents `UnitConfig.name`: card keys and tray keys carry the kind
+  prefix (`proc:` / `svc:`), so two units of different kinds may share a label
+  and still stay distinct, and a copy is renamed rather than creating a
+  duplicate label.
 - `ProcessManager` / `ServiceManager` are untouched: the derived getters hand
   each one its own kind in dashboard order.
 - Fewer files (`services_page.dart`, `services_viewmodel.dart` and their tests
@@ -66,8 +72,8 @@ order was always "all processes, then all services" — a constant, not a choice
 
 ## Alternatives rejected
 
-- **Keep the separate page and also show cards on the dashboard.** Two entry
-  points, two add paths, two orderings for the same data.
+- **Keep the separate page and also show cards on the dashboard.** Two places
+  to look, two add paths, two orderings for the same data.
 - **A separate `dashboard_order` reference list next to the two arrays.** Keeps
   the old schema but turns one order into two (array order vs. reference
   order), and needs add/delete/rename bookkeeping in both.

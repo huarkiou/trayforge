@@ -10,7 +10,8 @@ keeps units in one ordered list (`AppConfig.units`, JSON `units` with a `kind`
 discriminator), so the dashboard and the tray menu share a single order and a
 drag can move any card anywhere. `UnitConfig` is the sealed base of
 `ProcessConfig` and `ServiceConfig`; `AppConfig.processes` / `.services` are
-derived views of the same list. See ADR 006.
+derived views of the same list. `UnitKind` is the single place a kind's JSON
+value, label and key prefix live. See ADR 006.
 _Avoid_: item, entry, item type
 
 ## Process

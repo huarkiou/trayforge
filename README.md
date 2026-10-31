@@ -15,8 +15,8 @@ auto-start, auto-restart on crash, and colour-coded tray icon at a glance.
 - **Dashboard layouts** — switch between a list of wide cards and a grid of
   compact square cards from the dashboard AppBar; reorder cards by long-press
   drag in either layout.
-- **Inline process editing** — add, edit, duplicate, delete, and reorder processes
-  directly from the Dashboard — no need to open Settings.
+- **Inline editing** — add, edit, duplicate, delete, and reorder units directly
+  from the Dashboard — no need to open Settings.
 - **Auto-start** — processes with `autostart: true` launch when TrayForge starts.
 - **Crash recovery** — configurable `max_restarts` with cooldown periods. Gives up
   after the limit and marks the process as crashed.
@@ -179,9 +179,9 @@ loses the exit code.
 
 ### Service groups
 
-A service group is a `units` entry with `"kind": "service"`. It is a card in the
-same Dashboard flow as the processes: started or stopped as one unit, showing
-the aggregate state plus every member's own state.
+A service group is a unit with `"kind": "service"`. It is a card in the same
+Dashboard flow as the processes: started or stopped as one unit, showing the
+aggregate state plus every member's own state.
 
 ```json
 {
@@ -285,6 +285,7 @@ lib/
 │   ├── service_host.dart              # Service-control seam
 │   ├── service_host_win32.dart        # Windows SCM adapter (FFI)
 │   ├── service_host_linux.dart        # systemd adapter (systemctl + pkexec)
+│   ├── service_host_platform.dart     # Picks the host adapter for the OS
 │   ├── service_operator.dart          # Direct/elevated operation policy
 │   ├── service_status.dart            # ServiceState + aggregate mapping
 │   ├── process_cwd.dart               # FFI binding for process-cwd lookup
@@ -301,7 +302,7 @@ lib/
 │   ├── single_instance.dart           # Named mutex / lock file
 │   └── autostart.dart                 # OS autostart registration
 ├── viewmodels/
-│   ├── dashboard_viewmodel.dart       # One ordered entry list: both kinds
+│   ├── dashboard_viewmodel.dart       # One ordered unit list: both kinds
 │   ├── tray_viewmodel.dart
 │   ├── process_viewmodel.dart
 │   ├── service_viewmodel.dart
@@ -320,7 +321,8 @@ lib/
     ├── follow_scroll.dart
     ├── status_dot.dart
     ├── toggle_button.dart
-    └── copy_snackbar.dart
+    ├── copy_snackbar.dart
+    └── webui_copy_button.dart
 ```
 
 ## License

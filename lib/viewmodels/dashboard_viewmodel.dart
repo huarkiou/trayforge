@@ -16,8 +16,11 @@ import 'package:trayforge/viewmodels/service_viewmodel.dart';
 /// name and live state, so the dashboard can render them in one ordered list
 /// and move them with one drag. The kind-specific parts (output preview,
 /// per-service rows) stay in the card widgets.
-sealed class DashboardEntry {
-  const DashboardEntry();
+sealed class DashboardUnit {
+  const DashboardUnit();
+
+  /// Which kind of card this is.
+  UnitKind get kind;
 
   /// Display name, as configured.
   String get name;
@@ -26,39 +29,42 @@ sealed class DashboardEntry {
   ///
   /// Names are unique within a kind but not across kinds, so the id carries
   /// the kind prefix: `proc:<name>` / `svc:<name>`.
-  String get id;
+  String get id => '${kind.keyPrefix}$name';
+
+  /// Whether this card is the same unit as [config]: same kind and name.
+  bool matches(UnitConfig config) => kind == config.kind && name == config.name;
 }
 
 /// A process card in the dashboard flow.
-final class ProcessEntry extends DashboardEntry {
+final class ProcessUnit extends DashboardUnit {
   final ProcessViewModel viewModel;
 
-  const ProcessEntry(this.viewModel);
+  const ProcessUnit(this.viewModel);
+
+  @override
+  UnitKind get kind => UnitKind.process;
 
   @override
   String get name => viewModel.name;
-
-  @override
-  String get id => 'proc:$name';
 }
 
 /// A service group card in the dashboard flow.
-final class ServiceEntry extends DashboardEntry {
+final class ServiceUnit extends DashboardUnit {
   final ServiceViewModel viewModel;
 
-  const ServiceEntry(this.viewModel);
+  const ServiceUnit(this.viewModel);
+
+  @override
+  UnitKind get kind => UnitKind.service;
 
   @override
   String get name => viewModel.name;
-
-  @override
-  String get id => 'svc:$name';
 }
 
 /// ViewModel for the Dashboard window.
 ///
 /// Owns one view model per configured [unit][AppConfig.units], in config order,
-/// and exposes them as a single ordered [entries] list so processes and service
+/// and exposes them as a single ordered [units] list so processes and service
 /// groups share one card flow. Rebuilds whenever either manager reloads the
 /// config, reusing existing view models so logs and subscriptions survive an
 /// edit. [isEmpty] tells the UI to show the welcome screen.
@@ -69,11 +75,17 @@ class DashboardViewModel extends ChangeNotifier {
 
   final List<ProcessViewModel> _processViewModels = [];
   final List<ServiceViewModel> _serviceViewModels = [];
-  List<DashboardEntry> _entries = const [];
+  List<DashboardUnit> _units = const [];
   bool _configCorrupted;
 
-  /// Config-reload subscriptions, one per manager. Both fire on a save, so the
-  /// rebuild path is shared; the list is kept so [dispose] can cancel them.
+  /// Config-reload subscriptions, one per manager, both needed.
+  ///
+  /// Either manager can reload on its own (a tray "Reload Settings", a manual
+  /// edit applied through one coordinator), and every rebuild re-reads the
+  /// config from disk. When a save fires both, the second rebuild is an
+  /// idempotent pass: it finds the same names and reuses the same view
+  /// models, so no coalescing machinery is warranted. The list is kept so
+  /// [dispose] can cancel them.
   final List<StreamSubscription<void>> _configSubs = [];
 
   /// App title shown in the window title bar and Dashboard header.
@@ -94,18 +106,34 @@ class DashboardViewModel extends ChangeNotifier {
   }
 
   /// All cards, in config order: processes and service groups interleaved.
-  List<DashboardEntry> get entries => List.unmodifiable(_entries);
+  List<DashboardUnit> get units => List.unmodifiable(_units);
 
-  /// The process view models among the cards, in config order.
-  List<ProcessViewModel> get processViewModels =>
-      List.unmodifiable(_processViewModels);
+  /// The units re-ordered to match [order], for callers holding a fresher
+  /// order than the last config reload.
+  ///
+  /// A reorder persists without reloading the managers, so [units] can lag
+  /// the file by one edit. Anything [order] does not mention keeps its
+  /// current position at the end: the view model still owns that unit, so it
+  /// is moved, never dropped.
+  List<DashboardUnit> orderedBy(List<UnitConfig> order) {
+    final remaining = List<DashboardUnit>.of(_units);
+    final ordered = <DashboardUnit>[];
 
-  /// The service group view models among the cards, in config order.
-  List<ServiceViewModel> get serviceViewModels =>
-      List.unmodifiable(_serviceViewModels);
+    for (final config in order) {
+      for (var i = 0; i < remaining.length; i++) {
+        if (remaining[i].matches(config)) {
+          ordered.add(remaining.removeAt(i));
+          break;
+        }
+      }
+    }
+
+    ordered.addAll(remaining);
+    return ordered;
+  }
 
   /// Whether there is nothing to show (no processes and no service groups).
-  bool get isEmpty => _entries.isEmpty;
+  bool get isEmpty => _units.isEmpty;
 
   /// Whether a corrupted config was detected at startup.
   bool get configCorrupted => _configCorrupted;
@@ -117,7 +145,7 @@ class DashboardViewModel extends ChangeNotifier {
 
   void _rebuild() {
     final config = _configStore.load();
-    final units = config?.units ?? const <UnitConfig>[];
+    final configuredUnits = config?.units ?? const <UnitConfig>[];
     final outputHistoryLimit = config?.outputHistoryLimit ?? 1000;
 
     // Reuse by name so an edit keeps the existing view model (and its log).
@@ -128,11 +156,11 @@ class DashboardViewModel extends ChangeNotifier {
       for (final vm in _serviceViewModels) vm.name: vm,
     };
 
-    final entries = <DashboardEntry>[];
+    final dashboardUnits = <DashboardUnit>[];
     final processes = <ProcessViewModel>[];
     final services = <ServiceViewModel>[];
 
-    for (final unit in units) {
+    for (final unit in configuredUnits) {
       switch (unit) {
         case ProcessConfig():
           final vm =
@@ -143,7 +171,7 @@ class DashboardViewModel extends ChangeNotifier {
                 outputHistoryLimit: outputHistoryLimit,
               );
           processes.add(vm);
-          entries.add(ProcessEntry(vm));
+          dashboardUnits.add(ProcessUnit(vm));
         case ServiceConfig():
           final vm =
               servicesByName.remove(unit.name) ??
@@ -153,7 +181,7 @@ class DashboardViewModel extends ChangeNotifier {
                 outputHistoryLimit: outputHistoryLimit,
               );
           services.add(vm);
-          entries.add(ServiceEntry(vm));
+          dashboardUnits.add(ServiceUnit(vm));
       }
     }
 
@@ -171,7 +199,7 @@ class DashboardViewModel extends ChangeNotifier {
     _serviceViewModels
       ..clear()
       ..addAll(services);
-    _entries = entries;
+    _units = dashboardUnits;
 
     notifyListeners();
   }

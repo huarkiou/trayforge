@@ -16,6 +16,40 @@ void main() {
     });
   });
 
+  group('UnitKind', () {
+    test('has one JSON value per kind and parses it back', () {
+      expect(UnitKind.values, hasLength(2));
+      for (final kind in UnitKind.values) {
+        expect(UnitKind.tryParse(kind.jsonValue), kind);
+      }
+    });
+
+    test('carries the label and key prefix used by validation and cards', () {
+      expect(UnitKind.process.jsonValue, 'process');
+      expect(UnitKind.process.label, 'Process');
+      expect(UnitKind.process.keyPrefix, 'proc:');
+
+      expect(UnitKind.service.jsonValue, 'service');
+      expect(UnitKind.service.label, 'Service group');
+      expect(UnitKind.service.keyPrefix, 'svc:');
+    });
+
+    test('tryParse returns null for anything but the two JSON values', () {
+      expect(UnitKind.tryParse('contraband'), isNull);
+      expect(UnitKind.tryParse(''), isNull);
+      expect(UnitKind.tryParse('Process'), isNull);
+      expect(UnitKind.tryParse('proc:'), isNull);
+    });
+
+    test('each unit config reports its kind', () {
+      expect(const ProcessConfig(name: 'p', cmd: 'c').kind, UnitKind.process);
+      expect(
+        const ServiceConfig(name: 'g', services: ['A']).kind,
+        UnitKind.service,
+      );
+    });
+  });
+
   group('ProcessConfig', () {
     test('creates with required fields', () {
       final config = ProcessConfig(name: 'test', cmd: 'echo hello');

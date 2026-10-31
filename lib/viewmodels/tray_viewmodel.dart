@@ -104,11 +104,11 @@ class TrayViewModel extends ChangeNotifier {
     final units = config?.units ?? const <UnitConfig>[];
 
     final items = <TrayMenuItem>[];
-    bool? previousIsService;
+    UnitKind? previousKind;
 
     for (final unit in units) {
-      final isService = unit is ServiceConfig;
-      if (previousIsService != null && previousIsService != isService) {
+      final kind = unit.kind;
+      if (previousKind != null && previousKind != kind) {
         items.add(TrayMenuItem.separator());
       }
 
@@ -116,13 +116,11 @@ class TrayViewModel extends ChangeNotifier {
       // A service group is "up" when any member is up; starting counts too,
       // so the check appears as soon as the operation begins.
       final state =
-          (isService ? _serviceStates[name] : _states[name]) ??
+          (kind == UnitKind.service ? _serviceStates[name] : _states[name]) ??
           ProcState.stopped;
       final label = state.isActive ? '\u2713 $name' : '   $name';
-      items.add(
-        TrayMenuItem(key: isService ? 'svc:$name' : 'proc:$name', label: label),
-      );
-      previousIsService = isService;
+      items.add(TrayMenuItem(key: '${kind.keyPrefix}$name', label: label));
+      previousKind = kind;
     }
 
     if (items.isNotEmpty) {
@@ -142,12 +140,14 @@ class TrayViewModel extends ChangeNotifier {
   /// Keys are `proc:<name>` (toggle a process), `svc:<name>` (toggle a service
   /// group), and the fixed `reload` / `dashboard` / `exit`.
   void handleMenuAction(String key) {
-    if (key.startsWith('proc:')) {
-      _toggleProcess(key.substring('proc:'.length));
+    final processPrefix = UnitKind.process.keyPrefix;
+    if (key.startsWith(processPrefix)) {
+      _toggleProcess(key.substring(processPrefix.length));
       return;
     }
-    if (key.startsWith('svc:')) {
-      _toggleService(key.substring('svc:'.length));
+    final servicePrefix = UnitKind.service.keyPrefix;
+    if (key.startsWith(servicePrefix)) {
+      _toggleService(key.substring(servicePrefix.length));
       return;
     }
     switch (key) {
@@ -193,7 +193,7 @@ class TrayViewModel extends ChangeNotifier {
 
     for (final unit in units) {
       final name = unit.name;
-      if (unit is ServiceConfig) {
+      if (unit.kind == UnitKind.service) {
         final groups = serviceManager;
         if (groups == null) continue;
         _serviceStates[name] = groups.getState(name);

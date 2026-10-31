@@ -32,21 +32,30 @@ process or a service group:
   flat: `{"kind": "process", ...}` / `{"kind": "service", ...}` inside `units`.
   No wrapper objects, no `kind` field leaking into the per-kind config classes.
   `AppConfig.processes` / `.services` remain as derived getters so
-  `ProcessManager` / `ServiceManager` and the tray keep their existing inputs.
+  `ProcessManager` / `ServiceManager` keep their existing inputs (the tray reads
+  `units`).
 - **Old configs still load.** A config with `processes` / `services` and no
   `units` is read as `units = processes + services` (the previous visual order).
   The next save writes `units` only; keeping both keys would create two
   sources of truth. Per-unit `kind` is optional on read: a missing one is
-  inferred from the entry's shape (`services` → service group, otherwise a
+  inferred from the unit's shape (`services` → service group, otherwise a
   process), so hand-edited files are forgiving; an unknown `kind` value is a
   corrupted config (backed up, as any other parse failure).
 - **Order is the array.** No separate `dashboard_order` list: the units array is
   the order, so reorder is a list move, and add/delete are list operations.
   `services` / `processes` relative order inside the array is whatever the user
   dragged; nothing else reads that order for correctness.
+- **Reorder persists the order without reloading the managers.** A drag is a
+  list move, so it writes the new `units` order and stops there: reloading
+  would run the autostart path and could start a process the user stopped
+  manually. The dashboard applies the newer order immediately by reading the
+  `settings.units` order through `DashboardViewModel.orderedBy`; the tray menu
+  and the next reload of either manager agree because both read the config.
+  Nothing about a unit's running state changes.
 - **One dashboard view model.** `DashboardViewModel` owns both kinds' view
   models and rebuilds from `units`, so the dashboard has a single ordered
-  `entries` list of `ProcessEntry` / `ServiceEntry`. `ServicesViewModel` is
+  `units` list of `DashboardUnit` (`ProcessUnit` / `ServiceUnit`).
+  `ServicesViewModel` is
   deleted rather than kept as a second source of the same view models.
 - **Cards keep their kind-specific body.** A process card shows the output
   preview; a service card shows the aggregate state plus per-service rows
@@ -81,7 +90,7 @@ process or a service group:
 - `SettingsViewModel`: add/edit/delete/copy/reorder operate on unit indexes and
   persist the whole units array (globals carried too — the "a new global lands
   in three places" trap).
-- `DashboardViewModel`: entries follow config order, view models are reused
+- `DashboardViewModel`: units follow config order, view models are reused
   across reloads by (kind, name), removed units are disposed.
 - `DashboardScreen`: mixed list and grid render in order, drag reorders across
   kinds and persists, "+" menu offers both kinds, service card opens the
