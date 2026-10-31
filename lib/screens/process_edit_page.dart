@@ -203,9 +203,9 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
     final wasRunning = widget.isEditing && vm.isRunning(config.name);
 
     if (widget.isEditing) {
-      vm.edit(widget.editIndex!, config);
+      vm.editProcess(widget.editIndex!, config);
     } else {
-      vm.add(config);
+      vm.addProcess(config);
     }
 
     if (wasRunning) {
@@ -222,7 +222,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
   }
 
   void _duplicate() {
-    widget.settingsViewModel.copy(widget.editIndex!);
+    widget.settingsViewModel.copyUnit(widget.editIndex!);
     Navigator.of(context).pop();
   }
 
@@ -259,7 +259,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
       // Fire-and-forget: do not wait for process exit.
       widget.settingsViewModel.stopProcess(name);
     }
-    widget.settingsViewModel.delete(widget.editIndex!);
+    widget.settingsViewModel.deleteUnit(widget.editIndex!);
     if (!mounted) return;
     Navigator.of(context).pop(true);
   }

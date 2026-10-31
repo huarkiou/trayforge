@@ -11,17 +11,20 @@ import 'package:trayforge/services/service_manager.dart';
 
 /// ViewModel for the Settings page.
 ///
-/// Holds a mutable copy of [ProcessConfig] items, supports add/edit/delete/
-/// copy/reorder operations, validates via [ConfigStore.validate], and
-/// persists changes through [ProcessManager.reloadConfig].
+/// Holds a mutable copy of the [AppConfig.units] list, supports add/edit/
+/// delete/copy/reorder operations on unit indexes, validates via
+/// [ConfigStore.validate], and persists changes through
+/// [ProcessManager.reloadConfig] / [ServiceManager.reloadConfig].
+///
+/// Both kinds live in the same list: the dashboard's card order *is* the
+/// config order, so a reorder here is the whole ordering story.
 class SettingsViewModel extends ChangeNotifier {
   final ConfigStore _configStore;
   final ProcessManager _processManager;
   final ServiceManager? _serviceManager;
   final Autostart _autostart;
 
-  List<ProcessConfig> _processes = [];
-  List<ServiceConfig> _services = [];
+  List<UnitConfig> _units = [];
   int _outputRefreshMs = 500;
   int _outputHistoryLimit = 1000;
   int _servicePollMs = 5000;
@@ -41,11 +44,16 @@ class SettingsViewModel extends ChangeNotifier {
     _configSub = processManager.onConfigReloaded.listen((_) => _reload());
   }
 
-  /// All process configs in list order.
-  List<ProcessConfig> get processes => List.unmodifiable(_processes);
+  /// All units in dashboard order.
+  List<UnitConfig> get units => List.unmodifiable(_units);
 
-  /// All service groups in list order.
-  List<ServiceConfig> get services => List.unmodifiable(_services);
+  /// The processes among the units, in dashboard order.
+  List<ProcessConfig> get processes =>
+      _units.whereType<ProcessConfig>().toList(growable: false);
+
+  /// The service groups among the units, in dashboard order.
+  List<ServiceConfig> get services =>
+      _units.whereType<ServiceConfig>().toList(growable: false);
 
   /// Whether a process with [name] is currently running.
   bool isRunning(String name) {
@@ -95,53 +103,72 @@ class SettingsViewModel extends ChangeNotifier {
     await _processManager.stop(name);
   }
 
-  /// Adds a new [ProcessConfig] to the end of the list and persists.
-  void add(ProcessConfig config) {
+  /// Adds a new process to the end of the unit list and persists.
+  void addProcess(ProcessConfig config) {
     _configStore.validate(config);
-    _processes = [..._processes, config];
+    _units = [..._units, config];
     _save();
   }
 
-  /// Replaces the config at [index] with [config] and persists.
-  void edit(int index, ProcessConfig config) {
+  /// Replaces the unit at [unitIndex] with a process and persists.
+  void editProcess(int unitIndex, ProcessConfig config) {
     _configStore.validate(config);
-    _processes = List<ProcessConfig>.from(_processes);
-    _processes[index] = config;
+    _replaceUnit(unitIndex, config);
+  }
+
+  /// Adds a new service group to the end of the unit list and persists.
+  void addService(ServiceConfig config) {
+    _configStore.validate(config);
+    _units = [..._units, config];
     _save();
   }
 
-  /// Deletes the config at [index] and persists.
+  /// Replaces the unit at [unitIndex] with a service group and persists.
+  void editService(int unitIndex, ServiceConfig config) {
+    _configStore.validate(config);
+    _replaceUnit(unitIndex, config);
+  }
+
+  /// Deletes the unit at [unitIndex] and persists.
   ///
-  /// The process is terminated by [ProcessManager.reloadConfig] via
-  /// `applyRemoval` regardless of state — running, starting, cooldown,
-  /// or mid-stop — so no orphaned OS process or stale pid file survives.
-  void delete(int index) {
-    _processes = List<ProcessConfig>.from(_processes);
-    _processes.removeAt(index);
+  /// A deleted process is terminated by [ProcessManager.reloadConfig] via
+  /// `applyRemoval` regardless of state — running, starting, cooldown, or
+  /// mid-stop — so no orphaned OS process or stale pid file survives. A deleted
+  /// service group leaves its services running: TrayForge never owned them.
+  void deleteUnit(int unitIndex) {
+    _units = List<UnitConfig>.from(_units);
+    _units.removeAt(unitIndex);
     _save();
   }
 
-  /// Copies the config at [index], appending "(copy)" to the name.
+  /// Copies the unit at [unitIndex] right after it, appending "(copy)".
   ///
   /// Handles name collisions by appending a number.
-  void copy(int index) {
-    final source = _processes[index];
-    final baseName = '${source.name} (copy)';
-    final newName = _uniqueName(baseName);
+  void copyUnit(int unitIndex) {
+    final source = _units[unitIndex];
+    final newName = _uniqueName('${source.name} (copy)');
 
-    _processes = List<ProcessConfig>.from(_processes);
-    _processes.insert(index + 1, source.copyWith(name: newName));
+    _units = List<UnitConfig>.from(_units)
+      ..insert(unitIndex + 1, source.renamed(newName));
     _save();
   }
 
-  /// Reorders the config list and persists.
+  /// Reorders the unit list and persists.
   ///
   /// Uses the pre-adjusted newIndex from [ReorderableListView.onReorderItem],
-  /// which already accounts for the removed item at oldIndex.
+  /// which already accounts for the removed item at oldIndex. Moving a unit
+  /// past a unit of the other kind is just a move: the list has no kinds.
   void reorderItem(int oldIndex, int newIndex) {
-    _processes = List<ProcessConfig>.from(_processes);
-    final item = _processes.removeAt(oldIndex);
-    _processes.insert(newIndex, item);
+    _units = List<UnitConfig>.from(_units);
+    final item = _units.removeAt(oldIndex);
+    _units.insert(newIndex, item);
+    _save();
+  }
+
+  /// Replaces the unit at [unitIndex] and persists.
+  void _replaceUnit(int unitIndex, UnitConfig unit) {
+    _units = List<UnitConfig>.from(_units);
+    _units[unitIndex] = unit;
     _save();
   }
 
@@ -180,45 +207,17 @@ class SettingsViewModel extends ChangeNotifier {
   /// Validates a [ProcessConfig] using [ConfigStore.validate].
   ///
   /// Returns `null` on success, or an error message string on failure.
-  String? validateConfig(ProcessConfig config) {
-    try {
-      _configStore.validate(config);
-      return null;
-    } on ArgumentError catch (e) {
-      return e.message;
-    }
-  }
+  String? validateConfig(ProcessConfig config) => _validate(config);
 
   // ---- Service groups ----
 
-  /// Adds a service group to the end of the list and persists.
-  void addService(ServiceConfig config) {
-    _configStore.validateService(config);
-    _services = [..._services, config];
-    _save();
-  }
-
-  /// Replaces the service group at [index] and persists.
-  void editService(int index, ServiceConfig config) {
-    _configStore.validateService(config);
-    _services = List<ServiceConfig>.from(_services);
-    _services[index] = config;
-    _save();
-  }
-
-  /// Removes the service group at [index] and persists.
-  ///
-  /// The services themselves keep running: TrayForge never owned them.
-  void deleteService(int index) {
-    _services = List<ServiceConfig>.from(_services);
-    _services.removeAt(index);
-    _save();
-  }
-
   /// Validates a [ServiceConfig], returning `null` or an error message.
-  String? validateServiceConfig(ServiceConfig config) {
+  String? validateServiceConfig(ServiceConfig config) => _validate(config);
+
+  /// Validates a [UnitConfig], returning `null` or an error message.
+  String? _validate(UnitConfig unit) {
     try {
-      _configStore.validateService(config);
+      _configStore.validate(unit);
       return null;
     } on ArgumentError catch (e) {
       return e.message;
@@ -228,8 +227,7 @@ class SettingsViewModel extends ChangeNotifier {
   /// Reloads from [ConfigStore] when [ProcessManager.onConfigReloaded] fires.
   void _reload() {
     final config = _configStore.load();
-    _processes = config?.processes.toList() ?? [];
-    _services = config?.services.toList() ?? [];
+    _units = config?.units.toList() ?? [];
     _outputRefreshMs = config?.outputRefreshMs ?? 500;
     _outputHistoryLimit = config?.outputHistoryLimit ?? 1000;
     _servicePollMs = config?.servicePollMs ?? 5000;
@@ -244,8 +242,8 @@ class SettingsViewModel extends ChangeNotifier {
   /// [ProcessManager.reloadConfig] — globals take effect on next process
   /// start and don't require a hot reload.
   ///
-  /// Every global and both config lists must be carried here: writing only the
-  /// edited value would silently drop processes or services from disk.
+  /// Every global and the whole unit list must be carried here: writing only
+  /// the edited value would silently drop units from disk.
   void _saveGlobals() {
     final config = _configStore.load() ?? AppConfig.defaultConfig();
     final newConfig = AppConfig(
@@ -253,14 +251,13 @@ class SettingsViewModel extends ChangeNotifier {
       outputHistoryLimit: _outputHistoryLimit,
       servicePollMs: _servicePollMs,
       dashboardLayout: _dashboardLayout,
-      processes: List<ProcessConfig>.from(config.processes),
-      services: List<ServiceConfig>.from(config.services),
+      units: List<UnitConfig>.from(config.units),
     );
     _configStore.save(newConfig);
     notifyListeners();
   }
 
-  /// Persists the current process/service lists and triggers a hot reload.
+  /// Persists the current unit list and triggers a hot reload.
   ///
   /// Follows Path A from the spec:
   ///   1. ConfigStore.save() — write disk only
@@ -273,8 +270,7 @@ class SettingsViewModel extends ChangeNotifier {
       outputRefreshMs: config.outputRefreshMs,
       servicePollMs: config.servicePollMs,
       dashboardLayout: config.dashboardLayout,
-      processes: _processes,
-      services: _services,
+      units: _units,
     );
     _configStore.save(newConfig);
     _processManager.reloadConfig(newConfig);
@@ -283,8 +279,11 @@ class SettingsViewModel extends ChangeNotifier {
   }
 
   /// Generates a unique name by appending a counter if needed.
+  ///
+  /// Uniqueness is checked across every unit, not per kind: two cards with the
+  /// same label are a bug even when one is a process and the other a group.
   String _uniqueName(String base) {
-    final existing = _processes.map((p) => p.name).toSet();
+    final existing = _units.map((u) => u.name).toSet();
     if (!existing.contains(base)) return base;
 
     var counter = 2;

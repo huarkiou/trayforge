@@ -28,8 +28,8 @@ void main() {
     const config = AppConfig(
       dashboardLayout: DashboardLayout.list,
       servicePollMs: 5000,
-      processes: [ProcessConfig(name: 'proc', cmd: 'app.exe')],
-      services: [
+      units: [
+        ProcessConfig(name: 'proc', cmd: 'app.exe'),
         ServiceConfig(name: 'Licenses', services: ['A']),
       ],
     );
@@ -66,26 +66,29 @@ void main() {
   });
 
   group('SettingsViewModel', () {
-    test('loaded services are exposed', () {
+    test('loaded units are exposed in order', () {
+      expect(viewModel.units.map((u) => u.name), ['proc', 'Licenses']);
+      expect(viewModel.processes.single.name, 'proc');
       expect(viewModel.services.single.name, 'Licenses');
       expect(viewModel.servicePollMs, 5000);
     });
 
-    test('saving a global keeps processes and services on disk', () {
+    test('saving a global keeps every unit on disk', () {
       viewModel.setServicePollMs(2000);
 
       final saved = configStore.load()!;
       expect(saved.servicePollMs, 2000);
-      expect(saved.processes.single.name, 'proc');
-      expect(saved.services.single.name, 'Licenses');
+      expect(saved.units.map((u) => u.name), ['proc', 'Licenses']);
     });
 
-    test('saving processes keeps services on disk', () {
-      viewModel.add(const ProcessConfig(name: 'second', cmd: 'other.exe'));
+    test('adding a process appends it after the existing units', () {
+      viewModel.addProcess(
+        const ProcessConfig(name: 'second', cmd: 'other.exe'),
+      );
 
       final saved = configStore.load()!;
+      expect(saved.units.map((u) => u.name), ['proc', 'Licenses', 'second']);
       expect(saved.processes.map((p) => p.name), ['proc', 'second']);
-      expect(saved.services.single.name, 'Licenses');
     });
 
     test('adding a service persists it and reloads the manager', () async {
@@ -94,20 +97,76 @@ void main() {
       );
 
       final saved = configStore.load()!;
+      expect(saved.units.map((u) => u.name), ['proc', 'Licenses', 'Spooler']);
       expect(saved.services.map((s) => s.name), ['Licenses', 'Spooler']);
-      expect(saved.processes.single.name, 'proc');
 
       // The manager now knows the new group.
       expect(serviceManager.getState('Spooler'), ProcState.stopped);
     });
 
     test('deleting a service leaves the services themselves alone', () {
-      viewModel.deleteService(0);
+      viewModel.deleteUnit(1);
 
       final saved = configStore.load()!;
       expect(saved.services, isEmpty);
       expect(saved.processes.single.name, 'proc');
       expect(host.states['A'], ServiceState.stopped);
+    });
+
+    test('editing a process keeps the unit position', () {
+      viewModel.editProcess(
+        0,
+        const ProcessConfig(name: 'proc', cmd: 'edited.exe'),
+      );
+
+      final saved = configStore.load()!;
+      expect(saved.units.map((u) => u.name), ['proc', 'Licenses']);
+      expect(saved.processes.single.cmd, 'edited.exe');
+    });
+
+    test('editing a service group keeps the unit position', () {
+      viewModel.editService(
+        1,
+        const ServiceConfig(name: 'Licenses', services: ['A', 'B']),
+      );
+
+      final saved = configStore.load()!;
+      expect(saved.units.map((u) => u.name), ['proc', 'Licenses']);
+      expect(saved.services.single.services, ['A', 'B']);
+    });
+
+    test('reorders a unit across kinds and persists the new order', () {
+      viewModel.reorderItem(1, 0);
+
+      final saved = configStore.load()!;
+      expect(saved.units.map((u) => u.name), ['Licenses', 'proc']);
+      expect(saved.units[0], isA<ServiceConfig>());
+      expect(saved.units[1], isA<ProcessConfig>());
+    });
+
+    test('copying a service group inserts it right after itself', () {
+      viewModel.copyUnit(1);
+
+      final saved = configStore.load()!;
+      expect(saved.units.map((u) => u.name), [
+        'proc',
+        'Licenses',
+        'Licenses (copy)',
+      ]);
+      expect(saved.services.last.services, ['A']);
+    });
+
+    test('copying a process keeps its kind and the carried globals', () {
+      viewModel.copyUnit(0);
+
+      final saved = configStore.load()!;
+      expect(saved.units.map((u) => u.name), [
+        'proc',
+        'proc (copy)',
+        'Licenses',
+      ]);
+      expect(saved.processes.first.cmd, 'app.exe');
+      expect(saved.dashboardLayout, DashboardLayout.list);
     });
 
     test('reloadFromDisk applies a config edited on disk', () async {
@@ -118,12 +177,9 @@ void main() {
         AppConfig(
           servicePollMs: onDisk.servicePollMs,
           dashboardLayout: onDisk.dashboardLayout,
-          processes: [
-            ...onDisk.processes,
+          units: [
+            ...onDisk.units,
             const ProcessConfig(name: 'added', cmd: 'added.exe'),
-          ],
-          services: [
-            ...onDisk.services,
             const ServiceConfig(name: 'NewGroup', services: ['A']),
           ],
         ),
@@ -132,8 +188,12 @@ void main() {
       final reloaded = await viewModel.reloadFromDisk();
 
       expect(reloaded, isTrue);
-      expect(viewModel.processes.map((p) => p.name), contains('added'));
-      expect(viewModel.services.map((s) => s.name), contains('NewGroup'));
+      expect(viewModel.units.map((u) => u.name), [
+        'proc',
+        'Licenses',
+        'added',
+        'NewGroup',
+      ]);
       expect(
         serviceManager.statuses('NewGroup'),
         isNotEmpty,

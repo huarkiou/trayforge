@@ -1,6 +1,8 @@
 # ADR 005: Native service management (service groups)
 
-**Status:** Accepted
+**Status:** Accepted; the "A separate page" decision is superseded by
+[ADR 006](006-dashboard-units.md) (service groups now share the dashboard card
+flow).
 **Date:** 2026-10-31
 
 ## Context

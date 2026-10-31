@@ -35,8 +35,28 @@ extension ProcStateX on ProcState {
 /// The layout mode of the Dashboard process list.
 enum DashboardLayout { list, grid }
 
+/// One dashboard unit: whatever TrayForge shows as a single card and manages
+/// as one thing.
+///
+/// Exactly two kinds exist — a [ProcessConfig] and a [ServiceConfig] — and the
+/// configuration keeps them in one ordered [AppConfig.units] list, so the
+/// dashboard can interleave them in any order the user arranged.
+sealed class UnitConfig {
+  const UnitConfig();
+
+  /// Display name; unique within its kind.
+  String get name;
+
+  /// A copy of this unit carrying [newName].
+  ///
+  /// Copies and renames go through this instead of a per-kind `copyWith` so
+  /// callers that only know they have a unit can still build one.
+  UnitConfig renamed(String newName);
+}
+
 /// Configuration for a single managed process.
-class ProcessConfig {
+class ProcessConfig extends UnitConfig {
+  @override
   final String name;
   final String? cwd;
   final String cmd;
@@ -159,13 +179,17 @@ class ProcessConfig {
       logFile: logFile ?? this.logFile,
     );
   }
+
+  @override
+  ProcessConfig renamed(String newName) => copyWith(name: newName);
 }
 
 /// Configuration for a managed group of services (Windows SCM / systemd).
 ///
 /// A group is the unit of management: the card shows the aggregate state and a
 /// toggle drives every member to the same state (see ADR 005).
-class ServiceConfig {
+class ServiceConfig extends UnitConfig {
+  @override
   final String name;
 
   /// Service names (Windows) or unit names (systemd), managed together.
@@ -222,6 +246,9 @@ class ServiceConfig {
   @override
   int get hashCode =>
       Object.hash(name, stopDependents, Object.hashAll(services));
+
+  @override
+  ServiceConfig renamed(String newName) => copyWith(name: newName);
 }
 
 /// Application-level configuration.
@@ -233,26 +260,36 @@ class AppConfig {
   final int servicePollMs;
 
   final DashboardLayout dashboardLayout;
-  final List<ProcessConfig> processes;
 
-  /// Service groups managed alongside the processes.
-  final List<ServiceConfig> services;
+  /// Every managed unit in dashboard order: processes and service groups,
+  /// interleaved however the user arranged them.
+  ///
+  /// This list *is* the order — there is no separate layout array. Reordering
+  /// the dashboard moves an entry here.
+  final List<UnitConfig> units;
 
   const AppConfig({
     this.outputHistoryLimit = 1000,
     this.outputRefreshMs = 500,
     this.servicePollMs = 5000,
     this.dashboardLayout = DashboardLayout.list,
-    this.processes = const [],
-    this.services = const [],
+    this.units = const [],
   });
+
+  /// The configured processes, in dashboard order.
+  List<ProcessConfig> get processes =>
+      units.whereType<ProcessConfig>().toList(growable: false);
+
+  /// The configured service groups, in dashboard order.
+  List<ServiceConfig> get services =>
+      units.whereType<ServiceConfig>().toList(growable: false);
 
   /// Default configuration with example processes: NapCat + AstrBot.
   factory AppConfig.defaultConfig() {
     return AppConfig(
       outputHistoryLimit: 1000,
       outputRefreshMs: 500,
-      processes: [
+      units: [
         const ProcessConfig(
           name: 'NapCat',
           cwd: r'C:\NapCat',
@@ -280,8 +317,16 @@ class AppConfig {
     'output_refresh_ms': outputRefreshMs,
     'service_poll_ms': servicePollMs,
     'dashboard_layout': dashboardLayout.name,
-    'processes': processes.map((p) => p.toJson()).toList(),
-    'services': services.map((s) => s.toJson()).toList(),
+    'units': units.map(_unitToJson).toList(),
+  };
+
+  /// Serializes one unit with its `kind` discriminator.
+  ///
+  /// The kind lives here, not in the per-kind config classes: a
+  /// [ProcessConfig] written outside a units array has no kind to declare.
+  static Map<String, dynamic> _unitToJson(UnitConfig unit) => switch (unit) {
+    ProcessConfig p => {'kind': 'process', ...p.toJson()},
+    ServiceConfig s => {'kind': 'service', ...s.toJson()},
   };
 
   factory AppConfig.fromJson(Map<String, dynamic> json) {
@@ -290,17 +335,47 @@ class AppConfig {
       outputRefreshMs: json['output_refresh_ms'] as int? ?? 500,
       servicePollMs: json['service_poll_ms'] as int? ?? 5000,
       dashboardLayout: _parseDashboardLayout(json['dashboard_layout']),
-      services:
-          (json['services'] as List<dynamic>?)
-              ?.map((e) => ServiceConfig.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      processes:
-          (json['processes'] as List<dynamic>?)
-              ?.map((e) => ProcessConfig.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
+      units: _parseUnits(json),
     );
+  }
+
+  /// Parses the ordered unit list, migrating the pre-`units` schema.
+  ///
+  /// A config written by an older version has `processes` and `services`
+  /// arrays and no `units`; it is read as "processes first, then service
+  /// groups", which was the previous visual order.
+  static List<UnitConfig> _parseUnits(Map<String, dynamic> json) {
+    final rawUnits = json['units'];
+    if (rawUnits is List) {
+      return rawUnits
+          .map((e) => _parseUnit(e as Map<String, dynamic>))
+          .toList();
+    }
+
+    return [
+      for (final raw in json['processes'] as List<dynamic>? ?? const [])
+        ProcessConfig.fromJson(raw as Map<String, dynamic>),
+      for (final raw in json['services'] as List<dynamic>? ?? const [])
+        ServiceConfig.fromJson(raw as Map<String, dynamic>),
+    ];
+  }
+
+  /// Parses one unit entry.
+  ///
+  /// `kind` is optional so a hand-written entry can omit it; the entry's shape
+  /// then decides (`services` → service group, otherwise a process). An
+  /// unknown kind is a config we cannot interpret, so it fails like any other
+  /// parse error and [ConfigStore] backs the file up.
+  static UnitConfig _parseUnit(Map<String, dynamic> json) {
+    final kind = json['kind'];
+    if (kind == null) {
+      return json.containsKey('services')
+          ? ServiceConfig.fromJson(json)
+          : ProcessConfig.fromJson(json);
+    }
+    if (kind == 'process') return ProcessConfig.fromJson(json);
+    if (kind == 'service') return ServiceConfig.fromJson(json);
+    throw FormatException('Unknown unit kind: $kind');
   }
 
   /// Parses a JSON value that should be a [DashboardLayout] name.

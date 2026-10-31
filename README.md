@@ -2,9 +2,9 @@
 
 [![Test](https://github.com/huarkiou/trayforge/actions/workflows/test.yml/badge.svg)](https://github.com/huarkiou/trayforge/actions/workflows/test.yml)
 
-A Flutter desktop app that manages background processes from the system tray.
-Define your processes in a JSON config, and TrayForge keeps them running — auto-start,
-auto-restart on crash, and colour-coded tray icon at a glance.
+A Flutter desktop app that manages background processes and service groups from
+the system tray. Define them in a JSON config, and TrayForge keeps them running —
+auto-start, auto-restart on crash, and colour-coded tray icon at a glance.
 
 ## Features
 
@@ -41,9 +41,13 @@ auto-restart on crash, and colour-coded tray icon at a glance.
   live state from the OS, one UAC prompt per start/stop of the whole group,
   structured errors, no shell script in between. See
   [ADR 005](docs/adr/005-native-service-management.md).
+- **One card flow for both kinds** — processes and service groups share the
+  Dashboard: one ordered `units` list in `config.json`, one drag to reorder, one
+  `+` menu to add either. See [ADR 006](docs/adr/006-dashboard-units.md).
 - **Config hot-reload** — the tray's **Reload Settings** item (or the Settings
   page button) re-reads `config.json` and applies process **and** service
-  changes without restarting the app.- **Delete-before-start** — delete lock/persistent files before launching.
+  changes without restarting the app.
+- **Delete-before-start** — delete lock/persistent files before launching.
 - **Single-instance app** — only one TrayForge runs at a time; starting a second
   instance brings the existing one to the foreground.
 - **Corrupted config recovery** — detects corrupted `config.json`, backs it up, and
@@ -71,13 +75,17 @@ TrayForge stores its config in `config.json` under the app data directory
 
 ### Example `config.json`
 
+Processes and service groups share one ordered `units` array: the order in the
+file is the order of the cards on the Dashboard, and `kind` says which is which.
+
 ```json
 {
   "output_history_limit": 1000,
   "output_refresh_ms": 500,
   "dashboard_layout": "list",
-  "processes": [
+  "units": [
     {
+      "kind": "process",
       "name": "NapCat",
       "cwd": "C:\\NapCat",
       "cmd": "napcat.exe",
@@ -87,15 +95,13 @@ TrayForge stores its config in `config.json` under the app data directory
       "max_restarts": 3
     },
     {
-      "name": "AstrBot",
-      "cwd": "C:\\AstrBot",
-      "cmd": "astrbot.exe",
-      "singleton": true,
-      "autostart": true,
-      "webui_pattern": "WebUI started at (http://[\\d.:]+)",
-      "max_restarts": 3
+      "kind": "service",
+      "name": "Licenses",
+      "services": ["SIMULIA FLEXnet License Manager", "ANSYSLicensingTomcat"],
+      "stop_dependents": false
     },
     {
+      "kind": "process",
       "name": "Redis",
       "cwd": "C:\\Redis",
       "cmd": "redis-server.exe",
@@ -107,6 +113,10 @@ TrayForge stores its config in `config.json` under the app data directory
   ]
 }
 ```
+
+A config written by an older version (`processes` and `services` as two arrays,
+no `units`) still loads: it is read as "processes first, then service groups",
+and the next save rewrites it as `units`.
 
 ### Process fields
 
@@ -169,21 +179,20 @@ loses the exit code.
 
 ### Service groups
 
-`services` is an array of groups managed from the **Services** page (AppBar
-icon on the Dashboard). Each group is started or stopped as one unit, and the
-card shows the aggregate state plus every member's own state.
+A service group is a `units` entry with `"kind": "service"`. It is a card in the
+same Dashboard flow as the processes: started or stopped as one unit, showing
+the aggregate state plus every member's own state.
 
 ```json
-"services": [
-  {
-    "name": "Licenses",
-    "services": [
-      "SIMULIA FLEXnet License Manager",
-      "ANSYSLicensingTomcat"
-    ],
-    "stop_dependents": false
-  }
-]
+{
+  "kind": "service",
+  "name": "Licenses",
+  "services": [
+    "SIMULIA FLEXnet License Manager",
+    "ANSYSLicensingTomcat"
+  ],
+  "stop_dependents": false
+}
 ```
 
 | Field             | Type       | Description                                                       |
@@ -203,23 +212,26 @@ Behavior worth knowing:
   reported as cancelled). If TrayForge itself runs elevated, no prompt appears.
 - **Aggregate rule**: any member up → the toggle stops all members; otherwise it
   starts all members.
-- **Tray menu**: groups are listed under the processes (one section each), with a
-  check mark while a group is up; clicking one toggles it — the same single UAC
-  prompt as the card. The tray icon colour still reflects processes only.- **No autostart.** Starting a group at login would prompt for UAC at login;
+- **Tray menu**: the menu follows the same `units` order, with a check mark
+  while a unit is up; clicking one toggles it — the same single UAC prompt as
+  the card. The tray icon colour still reflects processes only.
+- **No autostart.** Starting a group at login would prompt for UAC at login;
   use the service's own start type for boot-time behavior.
 - **Linux**: `systemctl` is used, with `pkexec` as the escalation fallback.
 
 ## Usage
 
-### Managing processes
+### Managing processes and service groups
 
-All process management happens on the **Dashboard**:
+Everything is managed on the **Dashboard**, in one card flow:
 
-- **Add** — click the `+` button in the AppBar or "Add Process" on the welcome screen
-- **Edit** — click the pencil icon on any process card or in the detail page AppBar
-- **Duplicate** — open edit form and click "Duplicate" to copy a process
-- **Delete** — open edit form and click "Delete" (requires confirmation; warns if running)
-- **Reorder** — long-press and drag a card to a new position
+- **Add** — the `+` menu in the AppBar offers "Add process" and "Add service
+  group"; the welcome screen (nothing configured) offers both too
+- **Edit** — click the pencil icon on any card or in the detail page AppBar
+- **Duplicate** — open the process edit form and click "Duplicate"
+- **Delete** — open the edit form and click "Delete" (requires confirmation;
+  warns if the process is running)
+- **Reorder** — long-press and drag a card to a new position, across kinds
 - **Start/Stop** — toggle button on each card or in the detail page
 
 ### Settings
@@ -264,10 +276,17 @@ Build output lands in `build/windows/x64/runner/Release/` (Windows) or
 lib/
 ├── main.dart                          # Entry point, DI, window/tray lifecycle
 ├── foundation/
-│   ├── models.dart                    # ProcState, ProcessConfig, AppConfig
+│   ├── models.dart                    # UnitConfig, ProcessConfig, ServiceConfig, AppConfig
 │   ├── logger.dart                    # File-backed logger
 │   ├── output_pipeline.dart           # ANSI stripping, WebUI URL detection
 │   ├── shlex.dart                     # Shell-like command splitting
+│   ├── elevated_process_win32.dart    # UAC launch broker
+│   ├── log_file_tailer.dart           # log_file tailing into the output pane
+│   ├── service_host.dart              # Service-control seam
+│   ├── service_host_win32.dart        # Windows SCM adapter (FFI)
+│   ├── service_host_linux.dart        # systemd adapter (systemctl + pkexec)
+│   ├── service_operator.dart          # Direct/elevated operation policy
+│   ├── service_status.dart            # ServiceState + aggregate mapping
 │   ├── process_cwd.dart               # FFI binding for process-cwd lookup
 │   ├── process_cwd_win32.dart         # Windows: NtQuerySystemInformation
 │   └── process_cwd_linux.dart         # Linux: /proc/<pid>/cwd
@@ -276,20 +295,29 @@ lib/
 │   ├── process_controller.dart        # Per-process lifecycle state machine
 │   ├── process_manager.dart           # Process lifecycle (start/stop/restart)
 │   ├── process_runner.dart            # IProcessRunner + real + mock impls
+│   ├── service_controller.dart        # Per-group state machine + operation log
+│   ├── service_elevation.dart         # --service-op helper mode
+│   ├── service_manager.dart           # Group controllers + per-group streams
 │   ├── single_instance.dart           # Named mutex / lock file
 │   └── autostart.dart                 # OS autostart registration
 ├── viewmodels/
-│   ├── dashboard_viewmodel.dart
+│   ├── dashboard_viewmodel.dart       # One ordered entry list: both kinds
 │   ├── tray_viewmodel.dart
 │   ├── process_viewmodel.dart
+│   ├── service_viewmodel.dart
 │   └── settings_viewmodel.dart
 ├── screens/
 │   ├── dashboard_screen.dart
 │   ├── process_detail_screen.dart
 │   ├── process_edit_page.dart
+│   ├── service_detail_page.dart
+│   ├── service_edit_page.dart
 │   └── settings_page.dart
 └── widgets/
     ├── process_card.dart
+    ├── service_card.dart
+    ├── service_status_row.dart
+    ├── follow_scroll.dart
     ├── status_dot.dart
     ├── toggle_button.dart
     └── copy_snackbar.dart

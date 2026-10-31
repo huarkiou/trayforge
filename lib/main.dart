@@ -16,7 +16,6 @@ import 'package:trayforge/services/service_elevation.dart';
 import 'package:trayforge/services/service_manager.dart';
 import 'package:trayforge/services/single_instance.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
-import 'package:trayforge/viewmodels/services_viewmodel.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 import 'package:trayforge/viewmodels/tray_viewmodel.dart';
 
@@ -31,7 +30,6 @@ late final ProcessManager _processManager;
 late final ServiceManager _serviceManager;
 late final TrayViewModel _trayViewModel;
 late final DashboardViewModel _dashboardViewModel;
-late final ServicesViewModel _servicesViewModel;
 late final Autostart _autostart;
 late final SettingsViewModel _settingsViewModel;
 Timer? _wakeTimer;
@@ -100,12 +98,8 @@ Future<void> main(List<String> args) async {
   _dashboardViewModel = DashboardViewModel(
     configStore: _configStore,
     processManager: _processManager,
-    configCorrupted: configCorrupted,
-  );
-
-  _servicesViewModel = ServicesViewModel(
-    configStore: _configStore,
     serviceManager: _serviceManager,
+    configCorrupted: configCorrupted,
   );
 
   _settingsViewModel = SettingsViewModel(
@@ -217,7 +211,6 @@ Future<void> _exitApp() async {
   _trayViewModel.removeListener(_onTrayStateChanged);
   _trayViewModel.dispose();
   _dashboardViewModel.dispose();
-  _servicesViewModel.dispose();
   _settingsViewModel.dispose();
   _processManager.dispose();
   // Services are owned by the OS: disposing only stops polling and monitoring.
@@ -314,7 +307,6 @@ class _trayforgeApp extends StatelessWidget {
       home: DashboardScreen(
         viewModel: _dashboardViewModel,
         settingsViewModel: _settingsViewModel,
-        servicesViewModel: _servicesViewModel,
       ),
     );
   }

@@ -30,7 +30,7 @@ void main() {
         final config = AppConfig(
           outputHistoryLimit: 500,
           outputRefreshMs: 200,
-          processes: [ProcessConfig(name: 'app', cmd: 'run.exe')],
+          units: [ProcessConfig(name: 'app', cmd: 'run.exe')],
         );
         _writeConfig(tmpDir, config);
 
@@ -46,7 +46,7 @@ void main() {
         final config = AppConfig(
           outputHistoryLimit: 250,
           outputRefreshMs: 50,
-          processes: [
+          units: [
             ProcessConfig(
               name: 'svc',
               cwd: '/work',
@@ -120,7 +120,7 @@ void main() {
     group('save', () {
       test('writes config to config.json with indented JSON', () {
         final config = AppConfig(
-          processes: [ProcessConfig(name: 'test', cmd: 'echo')],
+          units: [ProcessConfig(name: 'test', cmd: 'echo')],
         );
 
         store.save(config);
@@ -137,7 +137,7 @@ void main() {
         final config = AppConfig(
           outputHistoryLimit: 42,
           outputRefreshMs: 7,
-          processes: [
+          units: [
             ProcessConfig(
               name: 'svc',
               cwd: '/app',
@@ -161,10 +161,11 @@ void main() {
         // Top-level keys
         expect(json.containsKey('output_history_limit'), isTrue);
         expect(json.containsKey('output_refresh_ms'), isTrue);
-        expect(json.containsKey('processes'), isTrue);
+        expect(json.containsKey('units'), isTrue);
 
         // Process-level keys
-        final proc = (json['processes'] as List).first as Map<String, dynamic>;
+        final proc = (json['units'] as List).first as Map<String, dynamic>;
+        expect(proc['kind'], 'process');
         expect(proc.containsKey('webui_pattern'), isTrue);
         expect(proc.containsKey('delete_before_start'), isTrue);
         expect(proc.containsKey('max_restarts'), isTrue);
@@ -183,6 +184,37 @@ void main() {
         expect(store.load()!.dashboardLayout, DashboardLayout.grid);
       });
 
+      test('rewrites a legacy config as one units array', () {
+        File('${tmpDir.path}/config.json').writeAsStringSync(
+          jsonEncode({
+            'processes': [
+              {'name': 'p1', 'cmd': 'c1'},
+            ],
+            'services': [
+              {
+                'name': 'g1',
+                'services': ['A'],
+              },
+            ],
+          }),
+          flush: true,
+        );
+
+        final loaded = store.load()!;
+        expect(loaded.units, hasLength(2));
+        store.save(loaded);
+
+        final json =
+            jsonDecode(File('${tmpDir.path}/config.json').readAsStringSync())
+                as Map<String, dynamic>;
+        expect(json.containsKey('processes'), isFalse);
+        expect(json.containsKey('services'), isFalse);
+        final units = json['units'] as List<dynamic>;
+        expect(units, hasLength(2));
+        expect((units[0] as Map<String, dynamic>)['kind'], 'process');
+        expect((units[1] as Map<String, dynamic>)['kind'], 'service');
+      });
+
       test('creates data directory if it does not exist', () {
         final nested = '${tmpDir.path}/nested/sub';
         final nestedStore = ConfigStore(dataDir: nested, maxBackupBytes: 300);
@@ -195,14 +227,14 @@ void main() {
         // First save
         store.save(
           AppConfig(
-            processes: [ProcessConfig(name: 'first', cmd: 'f')],
+            units: [ProcessConfig(name: 'first', cmd: 'f')],
           ),
         );
 
         // Second save
         store.save(
           AppConfig(
-            processes: [ProcessConfig(name: 'second', cmd: 's')],
+            units: [ProcessConfig(name: 'second', cmd: 's')],
           ),
         );
 
@@ -244,7 +276,7 @@ void main() {
         for (var i = 0; i < 3; i++) {
           store.save(
             AppConfig(
-              processes: [ProcessConfig(name: 'v$i', cmd: 'c$i')],
+              units: [ProcessConfig(name: 'v$i', cmd: 'c$i')],
             ),
           );
         }
@@ -290,14 +322,14 @@ void main() {
           _writeConfig(
             tmpDir,
             AppConfig(
-              processes: [ProcessConfig(name: 'x', cmd: 'x')],
+              units: [ProcessConfig(name: 'x', cmd: 'x')],
             ),
           );
 
           // Total is 270 which exceeds 200. Save should prune oldest.
           tinyStore.save(
             AppConfig(
-              processes: [ProcessConfig(name: 'y', cmd: 'y')],
+              units: [ProcessConfig(name: 'y', cmd: 'y')],
             ),
           );
 
@@ -421,6 +453,46 @@ void main() {
               webuiPattern: r'http://[\d.:]+',
             ),
           ),
+          returnsNormally,
+        );
+      });
+
+      test('validates a service group with the same name rules', () {
+        expect(
+          () => store.validate(const ServiceConfig(name: '', services: ['A'])),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains('Service group'),
+            ),
+          ),
+        );
+        expect(
+          () => store.validate(const ServiceConfig(name: 'a/b', services: [])),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains('/'),
+            ),
+          ),
+        );
+      });
+
+      test('rejects a service group with no services', () {
+        expect(
+          () => store.validate(const ServiceConfig(name: 'g', services: [])),
+          throwsA(
+            isA<ArgumentError>().having(
+              (e) => e.message,
+              'message',
+              contains('at least one service'),
+            ),
+          ),
+        );
+        expect(
+          () => store.validate(const ServiceConfig(name: 'g', services: ['A'])),
           returnsNormally,
         );
       });

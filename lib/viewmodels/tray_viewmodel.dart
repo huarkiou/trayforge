@@ -14,9 +14,9 @@ enum TrayColor { green, yellow, red }
 /// ViewModel for tray icon state, menu, and interactions.
 ///
 /// Listens to [ProcessManager] and (when wired) [ServiceManager] so the tray
-/// colour and menu labels follow live state. The menu lists processes and
-/// service groups; both route through the same toggle facades the dashboard
-/// uses, so start/stop decisions never live here.
+/// colour and menu labels follow live state. The menu lists the configured
+/// units in dashboard order; both kinds route through the same toggle facades
+/// the dashboard uses, so start/stop decisions never live here.
 class TrayViewModel extends ChangeNotifier {
   final ConfigStore _configStore;
   final ProcessManager _processManager;
@@ -93,35 +93,36 @@ class TrayViewModel extends ChangeNotifier {
     }
   }
 
-  /// Builds the tray context menu from the current process and service lists.
+  /// Builds the tray context menu from the configured units, in dashboard
+  /// order.
+  ///
+  /// The menu follows [AppConfig.units] so it cannot disagree with the
+  /// dashboard about order; a separator marks a change of kind, which is the
+  /// only visual signal a service group gets here.
   TrayMenu buildMenu() {
     final config = _configStore.load();
-    final processes = config?.processes ?? <ProcessConfig>[];
-    final services = config?.services ?? <ServiceConfig>[];
+    final units = config?.units ?? const <UnitConfig>[];
 
     final items = <TrayMenuItem>[];
+    bool? previousIsService;
 
-    // Dynamic process items — the key routes the click back here via
-    // [handleMenuAction]; desktop_tray has no per-item onClick closure.
-    for (final proc in processes) {
-      final name = proc.name;
-      final state = _states[name] ?? ProcState.stopped;
-      final isRunning = state.isActive;
-      final label = isRunning ? '\u2713 $name' : '   $name';
-      items.add(TrayMenuItem(key: 'proc:$name', label: label));
-    }
-
-    if (services.isNotEmpty) {
-      if (items.isNotEmpty) items.add(TrayMenuItem.separator());
-      for (final group in services) {
-        final name = group.name;
-        final state = _serviceStates[name] ?? ProcState.stopped;
-        // A group is "up" when any member is up; starting counts too, so the
-        // check appears as soon as the operation begins.
-        final isUp = state.isActive;
-        final label = isUp ? '\u2713 $name' : '   $name';
-        items.add(TrayMenuItem(key: 'svc:$name', label: label));
+    for (final unit in units) {
+      final isService = unit is ServiceConfig;
+      if (previousIsService != null && previousIsService != isService) {
+        items.add(TrayMenuItem.separator());
       }
+
+      final name = unit.name;
+      // A service group is "up" when any member is up; starting counts too,
+      // so the check appears as soon as the operation begins.
+      final state =
+          (isService ? _serviceStates[name] : _states[name]) ??
+          ProcState.stopped;
+      final label = state.isActive ? '\u2713 $name' : '   $name';
+      items.add(
+        TrayMenuItem(key: isService ? 'svc:$name' : 'proc:$name', label: label),
+      );
+      previousIsService = isService;
     }
 
     if (items.isNotEmpty) {
@@ -187,11 +188,24 @@ class TrayViewModel extends ChangeNotifier {
     _serviceStates.clear();
 
     final config = _configStore.load();
-    final processes = config?.processes ?? <ProcessConfig>[];
-    final services = config?.services ?? <ServiceConfig>[];
+    final units = config?.units ?? const <UnitConfig>[];
+    final processes = units.whereType<ProcessConfig>().toList(growable: false);
 
-    for (final proc in processes) {
-      final name = proc.name;
+    for (final unit in units) {
+      final name = unit.name;
+      if (unit is ServiceConfig) {
+        final groups = serviceManager;
+        if (groups == null) continue;
+        _serviceStates[name] = groups.getState(name);
+        _stateSubscriptions.add(
+          groups.stateStream(name).listen((state) {
+            _serviceStates[name] = state;
+            notifyListeners();
+          }),
+        );
+        continue;
+      }
+
       // Seed from ProcessManager synchronously so the colour is correct
       // before the first async stateStream event fires.
       _states[name] = _processManager.getState(name);
@@ -202,20 +216,6 @@ class TrayViewModel extends ChangeNotifier {
           notifyListeners();
         }),
       );
-    }
-
-    if (serviceManager != null) {
-      final groups = serviceManager!;
-      for (final group in services) {
-        final name = group.name;
-        _serviceStates[name] = groups.getState(name);
-        _stateSubscriptions.add(
-          groups.stateStream(name).listen((state) {
-            _serviceStates[name] = state;
-            notifyListeners();
-          }),
-        );
-      }
     }
 
     _recomputeColor(processes);

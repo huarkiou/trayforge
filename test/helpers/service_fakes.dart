@@ -1,6 +1,11 @@
+import 'dart:async';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/foundation/service_host.dart';
 import 'package:trayforge/foundation/service_operator.dart';
 import 'package:trayforge/foundation/service_status.dart';
+import 'package:trayforge/services/service_manager.dart';
 
 /// In-memory [ServiceHost] for tests.
 ///
@@ -111,5 +116,95 @@ class FakeElevatedServiceRunner implements ElevatedServiceRunner {
     final error = throwOnRun;
     if (error != null) throw error;
     onRun?.call(op);
+  }
+}
+
+/// In-memory [ServiceManager] for view-model and widget tests.
+///
+/// Seeds the group state/statuses, records `toggle` calls, and lets a test
+/// push new states through the same streams the real manager exposes. Nothing
+/// here touches the SCM, so a widget test needs no polling timers.
+class FakeServiceManager extends Fake implements ServiceManager {
+  FakeServiceManager({
+    Map<String, ProcState>? states,
+    Map<String, List<ServiceStatus>>? statuses,
+  }) : _states = {...?states},
+       _statuses = {...?statuses};
+
+  final Map<String, ProcState> _states;
+  final Map<String, List<ServiceStatus>> _statuses;
+
+  /// Group names passed to [toggle], in call order.
+  final List<String> toggled = [];
+
+  final StreamController<void> _configReloaded =
+      StreamController<void>.broadcast(sync: true);
+  final Map<String, StreamController<ProcState>> _stateControllers = {};
+  final Map<String, StreamController<List<ServiceStatus>>> _statusControllers =
+      {};
+  final Map<String, StreamController<String>> _outputControllers = {};
+
+  @override
+  ProcState getState(String name) => _states[name] ?? ProcState.stopped;
+
+  @override
+  List<ServiceStatus> statuses(String name) =>
+      _statuses[name] ?? const <ServiceStatus>[];
+
+  @override
+  Stream<ProcState> stateStream(String name) {
+    return _stateControllers
+        .putIfAbsent(
+          name,
+          () => StreamController<ProcState>.broadcast(sync: true),
+        )
+        .stream;
+  }
+
+  @override
+  Stream<List<ServiceStatus>> statusesStream(String name) {
+    return _statusControllers
+        .putIfAbsent(
+          name,
+          () => StreamController<List<ServiceStatus>>.broadcast(sync: true),
+        )
+        .stream;
+  }
+
+  @override
+  Stream<String> outputStream(String name) {
+    return _outputControllers
+        .putIfAbsent(name, () => StreamController<String>.broadcast(sync: true))
+        .stream;
+  }
+
+  @override
+  Stream<void> get onConfigReloaded => _configReloaded.stream;
+
+  @override
+  Future<void> toggle(String name) async {
+    toggled.add(name);
+  }
+
+  /// Pushes a new aggregate state to the group's state stream.
+  void emitState(String name, ProcState state) {
+    _states[name] = state;
+    _stateControllers[name]?.add(state);
+  }
+
+  /// Pushes a status snapshot to the group's status stream.
+  void emitStatuses(String name, List<ServiceStatus> statuses) {
+    _statuses[name] = statuses;
+    _statusControllers[name]?.add(statuses);
+  }
+
+  /// Pushes one operation-log line to the group's output stream.
+  void emitOutput(String name, String line) {
+    _outputControllers[name]?.add(line);
+  }
+
+  /// Fires the config-reload event the dashboard rebuilds from.
+  void emitConfigReloaded() {
+    _configReloaded.add(null);
   }
 }

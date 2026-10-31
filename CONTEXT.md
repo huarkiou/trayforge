@@ -3,6 +3,16 @@
 Single-context glossary for the trayforge codebase. Terms here name the
 concepts the code is organised around; see `docs/adr/` for decisions.
 
+## Unit
+
+One card in the dashboard flow: either a Process or a Service Group. The config
+keeps units in one ordered list (`AppConfig.units`, JSON `units` with a `kind`
+discriminator), so the dashboard and the tray menu share a single order and a
+drag can move any card anywhere. `UnitConfig` is the sealed base of
+`ProcessConfig` and `ServiceConfig`; `AppConfig.processes` / `.services` are
+derived views of the same list. See ADR 006.
+_Avoid_: item, entry, item type
+
 ## Process
 
 A configured external program trayforge manages. Declared in the config as
@@ -131,12 +141,14 @@ subscribe to real streams.
 ## UI
 
 **Dashboard**:
-The main window showing every configured Process at a glance.
+The main window showing every configured Unit at a glance — processes and
+service groups in one ordered card flow.
 _Avoid_: main window, home screen
 
 **List layout**:
 The default Dashboard arrangement — wide cards, each with a status dot,
-controls, and an output preview, reordered by long-press.
+controls, and (for a Process) an output preview or (for a Service Group) its
+members; reordered by long-press.
 _Avoid_: card list, the current layout
 
 **Grid layout**:
@@ -145,8 +157,8 @@ output preview, arranged in an adaptive grid, reordered by long-press.
 _Avoid_: tile view, square card matrix
 
 **Detail page**:
-The full-screen view opened by tapping a Process card — the complete
-output log, status, and controls.
+The full-screen view opened by tapping a Process or Service Group card — the
+complete output log or operation log, status, and controls.
 _Avoid_: log page, process viewer
 
 **Follow-latest**:

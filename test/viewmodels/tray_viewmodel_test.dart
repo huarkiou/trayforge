@@ -13,9 +13,9 @@ import '../helpers/test_mocks.dart';
 
 AppConfig _testConfig({String name = 'test-svc'}) {
   return AppConfig(
-    processes: [ProcessConfig(name: name, cmd: 'test.exe')],
-    services: const [
-      ServiceConfig(name: 'Licenses', services: ['A']),
+    units: [
+      ProcessConfig(name: name, cmd: 'test.exe'),
+      const ServiceConfig(name: 'Licenses', services: ['A']),
     ],
   );
 }
@@ -128,9 +128,8 @@ void main() {
 
       final onDisk = configStore.load()!;
       final updated = AppConfig(
-        processes: onDisk.processes,
-        services: [
-          ...onDisk.services,
+        units: [
+          ...onDisk.units,
           const ServiceConfig(name: 'Added', services: ['A']),
         ],
       );
@@ -146,15 +145,49 @@ void main() {
       expect(vm.buildMenu().findByKey('svc:Added'), isNotNull);
     });
 
-    test('process and service entries are separated', () async {
+    test('menu follows the unit order across kinds', () async {
       final vm = createTrayVm(withServices: serviceManager);
-      final keys = vm.buildMenu().items.map((item) => item.key).toList();
+      final items = vm.buildMenu().items;
+      final keys = items.map((item) => item.key).toList();
 
-      final processIndex = keys.indexOf('proc:test-svc');
-      final serviceIndex = keys.indexOf('svc:Licenses');
-      expect(processIndex, greaterThanOrEqualTo(0));
-      expect(serviceIndex, greaterThan(processIndex));
+      // Config order is process, then service group.
+      expect(keys.indexOf('proc:test-svc'), greaterThanOrEqualTo(0));
+      expect(
+        keys.indexOf('svc:Licenses'),
+        greaterThan(keys.indexOf('proc:test-svc')),
+      );
       expect(keys, containsAll(['reload', 'dashboard', 'exit']));
+
+      // One separator marks the kind change between them.
+      final separators = items.where((item) => item.key == null).length;
+      expect(separators, 2, reason: 'kind change + the fixed-item divider');
     });
+
+    test(
+      'reordering the units reorders the menu without a separator',
+      () async {
+        final vm = createTrayVm(withServices: serviceManager);
+
+        writeConfig(
+          tmpDir,
+          const AppConfig(
+            units: [
+              ServiceConfig(name: 'Licenses', services: ['A']),
+              ProcessConfig(name: 'test-svc', cmd: 'test.exe'),
+            ],
+          ),
+        );
+        await serviceManager.reloadConfig(configStore.load()!);
+
+        final items = vm.buildMenu().items;
+        final keys = items.map((item) => item.key).toList();
+        expect(
+          keys.indexOf('svc:Licenses'),
+          lessThan(keys.indexOf('proc:test-svc')),
+        );
+        final separators = items.where((item) => item.key == null).length;
+        expect(separators, 2);
+      },
+    );
   });
 }

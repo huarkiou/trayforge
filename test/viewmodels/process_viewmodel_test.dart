@@ -18,7 +18,7 @@ AppConfig _testConfig({
   return AppConfig(
     outputRefreshMs: outputRefreshMs,
     outputHistoryLimit: outputHistoryLimit,
-    processes: [
+    units: [
       ProcessConfig(
         name: name,
         cmd: 'test.exe',
@@ -250,7 +250,7 @@ void main() {
         AppConfig(
           outputRefreshMs: 10,
           outputHistoryLimit: 100,
-          processes: [
+          units: [
             const ProcessConfig(
               name: 'svc-a',
               cmd: 'a.exe',

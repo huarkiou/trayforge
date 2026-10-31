@@ -66,37 +66,30 @@ class ConfigStore {
     _prune();
   }
 
-  /// Validates a single [ProcessConfig].
+  /// Validates a single [UnitConfig], applying the rules of its kind.
   ///
   /// Throws [ArgumentError] if:
-  /// - [ProcessConfig.name] is empty or whitespace-only
-  /// - [ProcessConfig.name] contains `/` or `\`
-  /// - [ProcessConfig.webuiPattern] is non-null and not a valid regex
-  void validate(ProcessConfig config) {
-    _validateName(config.name, what: 'Process');
+  /// - the unit name is empty or whitespace-only
+  /// - the unit name contains `/` or `\`
+  /// - a [ProcessConfig.webuiPattern] is non-null and not a valid regex
+  /// - a [ServiceConfig] has no services
+  void validate(UnitConfig unit) {
+    _validateName(unit.name, what: _kindLabel(unit));
 
-    if (config.webuiPattern != null) {
-      try {
-        RegExp(config.webuiPattern!);
-      } on FormatException catch (e) {
-        throw ArgumentError('Invalid webui_pattern regex: ${e.message}');
-      }
-    }
-  }
-
-  /// Validates a single [ServiceConfig].
-  ///
-  /// Throws [ArgumentError] if:
-  /// - [ServiceConfig.name] is empty or whitespace-only
-  /// - [ServiceConfig.name] contains `/` or `\`
-  /// - [ServiceConfig.services] is empty
-  void validateService(ServiceConfig config) {
-    _validateName(config.name, what: 'Service group');
-
-    if (config.services.isEmpty) {
-      throw ArgumentError(
-        'Service group "${config.name}" needs at least one service',
-      );
+    switch (unit) {
+      case ProcessConfig(:final webuiPattern):
+        if (webuiPattern == null) return;
+        try {
+          RegExp(webuiPattern);
+        } on FormatException catch (e) {
+          throw ArgumentError('Invalid webui_pattern regex: ${e.message}');
+        }
+      case ServiceConfig(:final services):
+        if (services.isEmpty) {
+          throw ArgumentError(
+            'Service group "${unit.name}" needs at least one service',
+          );
+        }
     }
   }
 
@@ -110,6 +103,12 @@ class ConfigStore {
       throw ArgumentError('$what name "$name" must not contain / or \\');
     }
   }
+
+  /// The human label for a unit's kind, used in validation messages.
+  static String _kindLabel(UnitConfig unit) => switch (unit) {
+    ProcessConfig() => 'Process',
+    ServiceConfig() => 'Service group',
+  };
 
   // ---- Private helpers ----
 

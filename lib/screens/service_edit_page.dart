@@ -108,7 +108,7 @@ class _ServiceEditPageState extends State<ServiceEditPage> {
     );
     if (confirmed != true) return;
 
-    widget.settingsViewModel.deleteService(index);
+    widget.settingsViewModel.deleteUnit(index);
     if (mounted) Navigator.of(context).pop();
   }
 

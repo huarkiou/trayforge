@@ -50,7 +50,7 @@ class _FakeConfigStore extends Fake implements ConfigStore {
   }
 
   @override
-  void validate(ProcessConfig config) {}
+  void validate(UnitConfig config) {}
 }
 
 void main() {
@@ -62,7 +62,7 @@ void main() {
     ) async {
       const name = 'test-svc';
       final config = AppConfig(
-        processes: [const ProcessConfig(name: name, cmd: 'echo hi')],
+        units: [const ProcessConfig(name: name, cmd: 'echo hi')],
       );
 
       final vm = SettingsViewModel(
@@ -104,7 +104,7 @@ void main() {
     ) async {
       const name = 'test-svc';
       final config = AppConfig(
-        processes: [const ProcessConfig(name: name, cmd: 'echo hi')],
+        units: [const ProcessConfig(name: name, cmd: 'echo hi')],
       );
 
       // _StoppedFakePM returns ProcState.stopped for everything.

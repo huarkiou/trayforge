@@ -5,6 +5,7 @@ import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
+import '../helpers/service_fakes.dart';
 import '../helpers/test_mocks.dart';
 
 // ---------------------------------------------------------------------------
@@ -16,6 +17,7 @@ void main() {
     late Directory tmpDir;
     late ConfigStore configStore;
     late ProcessManager manager;
+    late FakeServiceManager services;
 
     setUp(() {
       tmpDir = Directory.systemTemp.createTempSync('tf_test_');
@@ -25,61 +27,66 @@ void main() {
         processRunner: MockProcessRunner(),
         dataDir: tmpDir.path,
       );
+      services = FakeServiceManager();
     });
 
     tearDown(() {
       tmpDir.deleteSync(recursive: true);
     });
 
+    DashboardViewModel build({bool configCorrupted = false}) {
+      return DashboardViewModel(
+        configStore: ConfigStore(dataDir: tmpDir.path),
+        processManager: manager,
+        serviceManager: services,
+        configCorrupted: configCorrupted,
+      );
+    }
+
     // ---- Empty state ----
 
     test('isEmpty is true when no config exists', () {
-      final vm = DashboardViewModel(
-        configStore: configStore,
-        processManager: manager,
-      );
+      final vm = build();
 
       expect(vm.isEmpty, true);
+      expect(vm.entries, isEmpty);
       expect(vm.processViewModels, isEmpty);
+      expect(vm.serviceViewModels, isEmpty);
     });
 
-    test('isEmpty is true when config has no processes', () {
-      writeConfig(tmpDir, AppConfig(processes: []));
-      // Reload config since manager already loaded during setup.
-      final configStore2 = ConfigStore(dataDir: tmpDir.path);
+    test('isEmpty is true when config has no units', () {
+      writeConfig(tmpDir, const AppConfig());
 
-      final vm = DashboardViewModel(
-        configStore: configStore2,
-        processManager: manager,
-      );
+      final vm = build();
 
       expect(vm.isEmpty, true);
     });
 
     // ---- Populated state ----
 
-    test('creates ProcessViewModel for each configured process', () {
+    test('creates one entry per configured unit, in config order', () {
       writeConfig(
         tmpDir,
-        AppConfig(
+        const AppConfig(
           outputHistoryLimit: 500,
-          processes: [
-            const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-            const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+          units: [
+            ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            ServiceConfig(name: 'group-a', services: ['A']),
+            ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
           ],
         ),
       );
-      final configStore2 = ConfigStore(dataDir: tmpDir.path);
 
-      final vm = DashboardViewModel(
-        configStore: configStore2,
-        processManager: manager,
-      );
+      final vm = build();
 
       expect(vm.isEmpty, false);
+      expect(vm.entries.map((e) => e.name), ['svc-a', 'group-a', 'svc-b']);
+      expect(vm.entries[0], isA<ProcessEntry>());
+      expect(vm.entries[1], isA<ServiceEntry>());
+      expect(vm.entries[2], isA<ProcessEntry>());
+      expect(vm.entries[1].id, 'svc:group-a');
       expect(vm.processViewModels.length, 2);
-      expect(vm.processViewModels[0].name, 'svc-a');
-      expect(vm.processViewModels[1].name, 'svc-b');
+      expect(vm.serviceViewModels.single.name, 'group-a');
     });
 
     // ---- Config changed ----
@@ -87,53 +94,69 @@ void main() {
     test('rebuilds when onConfigReloaded fires', () async {
       writeConfig(
         tmpDir,
-        AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        const AppConfig(
+          units: [ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
-      final configStore2 = ConfigStore(dataDir: tmpDir.path);
 
-      final vm = DashboardViewModel(
-        configStore: configStore2,
-        processManager: manager,
-      );
+      final vm = build();
 
-      expect(vm.processViewModels.length, 1);
+      expect(vm.entries.length, 1);
 
-      // Save new config with additional process.
-      final newConfig = AppConfig(
-        processes: [
-          const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
-          const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+      // Save new config with an additional process.
+      final newConfig = const AppConfig(
+        units: [
+          ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+          ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
         ],
       );
-      configStore2.save(newConfig);
+      configStore.save(newConfig);
 
       // Fire onConfigReloaded through ProcessManager.
       await manager.reloadConfig(newConfig);
 
-      expect(vm.processViewModels.length, 2);
-      expect(vm.processViewModels[1].name, 'svc-b');
+      expect(vm.entries.map((e) => e.name), ['svc-a', 'svc-b']);
     });
 
-    test('switches to empty when config removes all processes', () async {
+    test('rebuilds when the service manager reloads the config', () async {
       writeConfig(
         tmpDir,
-        AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        const AppConfig(
+          units: [ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
-      final configStore2 = ConfigStore(dataDir: tmpDir.path);
 
-      final vm = DashboardViewModel(
-        configStore: configStore2,
-        processManager: manager,
+      final vm = build();
+      expect(vm.serviceViewModels, isEmpty);
+
+      configStore.save(
+        const AppConfig(
+          units: [
+            ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            ServiceConfig(name: 'group-a', services: ['A']),
+          ],
+        ),
       );
+      services.emitConfigReloaded();
+
+      expect(vm.entries.map((e) => e.name), ['svc-a', 'group-a']);
+      expect(vm.serviceViewModels.single.name, 'group-a');
+    });
+
+    test('switches to empty when config removes all units', () async {
+      writeConfig(
+        tmpDir,
+        const AppConfig(
+          units: [ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        ),
+      );
+
+      final vm = build();
 
       expect(vm.isEmpty, false);
 
-      final emptyConfig = AppConfig(processes: []);
-      configStore2.save(emptyConfig);
+      const emptyConfig = AppConfig();
+      configStore.save(emptyConfig);
 
       // Fire onConfigReloaded through ProcessManager.
       await manager.reloadConfig(emptyConfig);
@@ -144,33 +167,21 @@ void main() {
     // ---- Corrupted config flag ----
 
     test('configCorrupted defaults to false', () {
-      writeConfig(tmpDir, AppConfig(processes: []));
-      final configStore2 = ConfigStore(dataDir: tmpDir.path);
+      writeConfig(tmpDir, const AppConfig());
 
-      final vm = DashboardViewModel(
-        configStore: configStore2,
-        processManager: manager,
-      );
+      final vm = build();
 
       expect(vm.configCorrupted, false);
     });
 
     test('configCorrupted is true when passed', () {
-      final vm = DashboardViewModel(
-        configStore: configStore,
-        processManager: manager,
-        configCorrupted: true,
-      );
+      final vm = build(configCorrupted: true);
 
       expect(vm.configCorrupted, true);
     });
 
     test('clearCorruptedFlag clears the flag', () {
-      final vm = DashboardViewModel(
-        configStore: configStore,
-        processManager: manager,
-        configCorrupted: true,
-      );
+      final vm = build(configCorrupted: true);
 
       vm.clearCorruptedFlag();
       expect(vm.configCorrupted, false);
@@ -181,16 +192,15 @@ void main() {
     test('dispose disposes child view models', () {
       writeConfig(
         tmpDir,
-        AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        const AppConfig(
+          units: [
+            ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            ServiceConfig(name: 'group-a', services: ['A']),
+          ],
         ),
       );
-      final configStore2 = ConfigStore(dataDir: tmpDir.path);
 
-      final vm = DashboardViewModel(
-        configStore: configStore2,
-        processManager: manager,
-      );
+      final vm = build();
 
       // Should not throw.
       vm.dispose();
@@ -207,58 +217,89 @@ void main() {
     test('reuses existing ViewModels by name across rebuilds', () async {
       writeConfig(
         tmpDir,
-        AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        const AppConfig(
+          units: [
+            ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            ServiceConfig(name: 'group-a', services: ['A']),
+          ],
         ),
       );
-      final configStore2 = ConfigStore(dataDir: tmpDir.path);
 
-      final vm = DashboardViewModel(
-        configStore: configStore2,
-        processManager: manager,
+      final vm = build();
+
+      final process = vm.processViewModels[0];
+      final service = vm.serviceViewModels[0];
+
+      // Save a config with the same names, then fire onConfigReloaded.
+      final newConfig = const AppConfig(
+        units: [
+          ProcessConfig(name: 'svc-a', cmd: 'a2.exe'),
+          ServiceConfig(name: 'group-a', services: ['A']),
+        ],
       );
-
-      final original = vm.processViewModels[0];
-
-      // Save config with same name, then fire onConfigReloaded.
-      final newConfig = AppConfig(
-        processes: [const ProcessConfig(name: 'svc-a', cmd: 'a2.exe')],
-      );
-      configStore2.save(newConfig);
+      configStore.save(newConfig);
       await manager.reloadConfig(newConfig);
 
-      // The same VM instance should be reused (identity check).
-      expect(vm.processViewModels.length, 1);
-      expect(identical(vm.processViewModels[0], original), true);
+      // The same VM instances should be reused (identity check).
+      expect(identical(vm.processViewModels[0], process), true);
+      expect(identical(vm.serviceViewModels[0], service), true);
     });
 
-    test('disposes ViewModels for removed processes', () async {
+    test('reorders entries without rebuilding the view models', () async {
       writeConfig(
         tmpDir,
-        AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+        const AppConfig(
+          units: [
+            ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            ServiceConfig(name: 'group-a', services: ['A']),
+          ],
         ),
       );
-      final configStore2 = ConfigStore(dataDir: tmpDir.path);
 
-      final vm = DashboardViewModel(
-        configStore: configStore2,
-        processManager: manager,
+      final vm = build();
+      final process = vm.processViewModels[0];
+
+      final reordered = const AppConfig(
+        units: [
+          ServiceConfig(name: 'group-a', services: ['A']),
+          ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+        ],
+      );
+      configStore.save(reordered);
+      await manager.reloadConfig(reordered);
+
+      expect(vm.entries.map((e) => e.id), ['svc:group-a', 'proc:svc-a']);
+      expect(identical(vm.processViewModels[0], process), true);
+    });
+
+    test('disposes ViewModels for removed units', () async {
+      writeConfig(
+        tmpDir,
+        const AppConfig(
+          units: [
+            ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            ServiceConfig(name: 'group-a', services: ['A']),
+          ],
+        ),
       );
 
-      final original = vm.processViewModels[0];
+      final vm = build();
 
-      // Save config without the process, then fire onConfigReloaded.
-      final emptyConfig = AppConfig(processes: []);
-      configStore2.save(emptyConfig);
+      final process = vm.processViewModels[0];
+      final service = vm.serviceViewModels[0];
+
+      // Save a config without the units, then fire onConfigReloaded.
+      const emptyConfig = AppConfig();
+      configStore.save(emptyConfig);
       await manager.reloadConfig(emptyConfig);
 
-      expect(vm.processViewModels, isEmpty);
+      expect(vm.entries, isEmpty);
 
-      // The old VM should be safe to call addListener on (disposed but no-op).
+      // The old VMs should be safe to call addListener on (disposed but no-op).
       // This verifies that dispose was called.
       var called = false;
-      original.addListener(() => called = true);
+      process.addListener(() => called = true);
+      service.addListener(() => called = true);
       expect(called, false);
     });
   });

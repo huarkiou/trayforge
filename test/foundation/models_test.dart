@@ -265,13 +265,15 @@ void main() {
     test('round-trips services and service_poll_ms', () {
       const config = AppConfig(
         servicePollMs: 2000,
-        services: [
+        units: [
           ServiceConfig(name: 'g', services: ['A']),
         ],
       );
       final json = config.toJson();
       expect(json['service_poll_ms'], 2000);
-      expect((json['services'] as List<dynamic>), hasLength(1));
+      final units = json['units'] as List<dynamic>;
+      expect(units, hasLength(1));
+      expect((units.single as Map<String, dynamic>)['kind'], 'service');
 
       final parsed = AppConfig.fromJson(json);
       expect(parsed.servicePollMs, 2000);
@@ -282,6 +284,111 @@ void main() {
       final parsed = AppConfig.fromJson({'processes': <dynamic>[]});
       expect(parsed.services, isEmpty);
       expect(parsed.servicePollMs, 5000);
+    });
+  });
+
+  group('AppConfig units', () {
+    test('keeps the configured order across kinds', () {
+      const config = AppConfig(
+        units: [
+          ProcessConfig(name: 'p1', cmd: 'c1'),
+          ServiceConfig(name: 'g1', services: ['A']),
+          ProcessConfig(name: 'p2', cmd: 'c2'),
+        ],
+      );
+
+      expect(config.units.map((u) => u.name), ['p1', 'g1', 'p2']);
+      expect(config.processes.map((p) => p.name), ['p1', 'p2']);
+      expect(config.services.map((s) => s.name), ['g1']);
+    });
+
+    test('round-trips order and kinds', () {
+      const config = AppConfig(
+        units: [
+          ServiceConfig(name: 'g1', services: ['A'], stopDependents: true),
+          ProcessConfig(name: 'p1', cmd: 'c1'),
+        ],
+      );
+
+      final parsed = AppConfig.fromJson(config.toJson());
+
+      expect(parsed.units, hasLength(2));
+      expect(parsed.units[0], isA<ServiceConfig>());
+      expect(parsed.units[1], isA<ProcessConfig>());
+      expect(parsed.services.single, config.services.single);
+      expect(parsed.processes.single.name, 'p1');
+    });
+
+    test('migrates a legacy processes + services config, processes first', () {
+      final parsed = AppConfig.fromJson({
+        'processes': [
+          {'name': 'p1', 'cmd': 'c1'},
+        ],
+        'services': [
+          {
+            'name': 'g1',
+            'services': ['A'],
+          },
+        ],
+      });
+
+      expect(parsed.units.map((u) => u.name), ['p1', 'g1']);
+      expect(parsed.units[0], isA<ProcessConfig>());
+      expect(parsed.units[1], isA<ServiceConfig>());
+    });
+
+    test('infers the kind when a hand-written entry omits it', () {
+      final parsed = AppConfig.fromJson({
+        'units': [
+          {'name': 'p1', 'cmd': 'c1'},
+          {
+            'name': 'g1',
+            'services': ['A'],
+          },
+        ],
+      });
+
+      expect(parsed.units[0], isA<ProcessConfig>());
+      expect(parsed.units[1], isA<ServiceConfig>());
+    });
+
+    test('an explicit kind wins over the entry shape', () {
+      final parsed = AppConfig.fromJson({
+        'units': [
+          {
+            'kind': 'process',
+            'name': 'p1',
+            'cmd': 'c1',
+            'services': ['A'],
+          },
+        ],
+      });
+
+      expect(parsed.units.single, isA<ProcessConfig>());
+    });
+
+    test('an unknown kind is a parse failure, not a skipped unit', () {
+      expect(
+        () => AppConfig.fromJson({
+          'units': [
+            {'kind': 'contraband', 'name': 'x'},
+          ],
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('renamed keeps the kind and swaps the name', () {
+      const process = ProcessConfig(name: 'p1', cmd: 'c1');
+      final renamed = process.renamed('p2');
+      expect(renamed, isA<ProcessConfig>());
+      expect(renamed.name, 'p2');
+      expect(renamed.cmd, 'c1');
+
+      const group = ServiceConfig(name: 'g1', services: ['A']);
+      final renamedGroup = group.renamed('g2');
+      expect(renamedGroup, isA<ServiceConfig>());
+      expect(renamedGroup.services, ['A']);
     });
   });
 
@@ -300,7 +407,7 @@ void main() {
         outputHistoryLimit: 500,
         outputRefreshMs: 50,
         dashboardLayout: DashboardLayout.grid,
-        processes: processes,
+        units: processes,
       );
       expect(config.outputHistoryLimit, 500);
       expect(config.outputRefreshMs, 50);
@@ -335,14 +442,17 @@ void main() {
           outputHistoryLimit: 200,
           outputRefreshMs: 50,
           dashboardLayout: DashboardLayout.grid,
-          processes: [ProcessConfig(name: 'p1', cmd: 'c1')],
+          units: [ProcessConfig(name: 'p1', cmd: 'c1')],
         );
         final json = config.toJson();
         expect(json['output_history_limit'], 200);
         expect(json['output_refresh_ms'], 50);
         expect(json['dashboard_layout'], 'grid');
-        expect(json['processes'], isA<List>());
-        expect((json['processes'] as List).length, 1);
+        expect(json.containsKey('processes'), isFalse);
+        expect(json.containsKey('services'), isFalse);
+        final units = json['units'] as List<dynamic>;
+        expect(units, hasLength(1));
+        expect((units.single as Map<String, dynamic>)['kind'], 'process');
       });
     });
 
@@ -375,7 +485,7 @@ void main() {
         expect(AppConfig.fromJson(json).dashboardLayout, DashboardLayout.list);
       });
 
-      test('deserializes full config', () {
+      test('deserializes a migrated legacy config', () {
         final json = {
           'output_history_limit': 500,
           'output_refresh_ms': 200,
@@ -390,6 +500,8 @@ void main() {
         expect(config.processes.length, 2);
         expect(config.processes[0].name, 'p1');
         expect(config.processes[1].singleton, true);
+        expect(config.units, hasLength(2));
+        expect(config.units.every((u) => u is ProcessConfig), isTrue);
       });
     });
   });

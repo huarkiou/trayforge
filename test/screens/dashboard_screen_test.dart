@@ -4,15 +4,19 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/foundation/service_status.dart';
 import 'package:trayforge/screens/dashboard_screen.dart';
+import 'package:trayforge/screens/service_detail_page.dart';
 import 'package:trayforge/services/autostart.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 import 'package:trayforge/widgets/process_card.dart';
+import 'package:trayforge/widgets/service_card.dart';
 import 'package:trayforge/widgets/status_dot.dart';
 
 import '../helpers/recording_config_store.dart';
+import '../helpers/service_fakes.dart';
 
 /// Long-presses at [start], then drags to [end] and releases.
 ///
@@ -42,7 +46,12 @@ Future<void> longPressDrag(
 /// [configCorrupted] forwards to [DashboardViewModel]; [withSettings] also
 /// adds a [SettingsViewModel] (and the AppBar buttons that come with it).
 Future<
-  ({RecordingConfigStore store, _FakeProcessManager pm, DashboardViewModel dm})
+  ({
+    RecordingConfigStore store,
+    _FakeProcessManager pm,
+    FakeServiceManager svc,
+    DashboardViewModel dm,
+  })
 >
 pumpDashboard(
   WidgetTester tester, {
@@ -52,9 +61,11 @@ pumpDashboard(
 }) async {
   final store = RecordingConfigStore(config);
   final pm = _FakeProcessManager();
+  final svc = FakeServiceManager();
   final dm = DashboardViewModel(
     configStore: store,
     processManager: pm,
+    serviceManager: svc,
     configCorrupted: configCorrupted,
   );
   final sm = withSettings
@@ -69,7 +80,7 @@ pumpDashboard(
       home: DashboardScreen(viewModel: dm, settingsViewModel: sm),
     ),
   );
-  return (store: store, pm: pm, dm: dm);
+  return (store: store, pm: pm, svc: svc, dm: dm);
 }
 
 /// A minimal fake that satisfies the [ProcessManager] interface for
@@ -135,21 +146,27 @@ void main() {
   group('DashboardScreen', () {
     // ---- Welcome screen ----
 
-    testWidgets('shows welcome screen when no processes', (tester) async {
+    testWidgets('shows welcome screen when nothing is configured', (
+      tester,
+    ) async {
       await pumpDashboard(
         tester,
-        config: AppConfig(processes: []),
+        config: const AppConfig(units: []),
         withSettings: false,
       );
 
-      expect(find.text('No processes configured'), findsOneWidget);
+      expect(
+        find.text('No processes or service groups configured'),
+        findsOneWidget,
+      );
       expect(find.text('Add Process'), findsOneWidget);
+      expect(find.text('Add Service Group'), findsOneWidget);
     });
 
-    testWidgets('welcome screen "Add Process" button navigates to settings', (
+    testWidgets('welcome screen "Add Process" button navigates to the form', (
       tester,
     ) async {
-      await pumpDashboard(tester, config: AppConfig(processes: []));
+      await pumpDashboard(tester, config: const AppConfig(units: []));
 
       await tester.tap(find.text('Add Process'));
       await tester.pump();
@@ -159,13 +176,25 @@ void main() {
       expect(find.widgetWithText(AppBar, 'Add Process'), findsOneWidget);
     });
 
+    testWidgets('welcome screen "Add Service Group" opens the group form', (
+      tester,
+    ) async {
+      await pumpDashboard(tester, config: const AppConfig(units: []));
+
+      await tester.tap(find.text('Add Service Group'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.widgetWithText(AppBar, 'Add Service Group'), findsOneWidget);
+    });
+
     // ---- Dashboard with cards ----
 
     testWidgets('shows process cards when processes exist', (tester) async {
       await pumpDashboard(
         tester,
         config: AppConfig(
-          processes: [
+          units: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
             const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
           ],
@@ -184,7 +213,7 @@ void main() {
       await pumpDashboard(
         tester,
         config: AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
         withSettings: false,
       );
@@ -205,7 +234,7 @@ void main() {
     testWidgets('shows alert dialog when config is corrupted', (tester) async {
       await pumpDashboard(
         tester,
-        config: AppConfig(processes: []),
+        config: AppConfig(units: []),
         withSettings: false,
         configCorrupted: true,
       );
@@ -221,7 +250,7 @@ void main() {
     testWidgets('dismissing corrupted dialog clears flag', (tester) async {
       final h = await pumpDashboard(
         tester,
-        config: AppConfig(processes: []),
+        config: AppConfig(units: []),
         withSettings: false,
         configCorrupted: true,
       );
@@ -246,7 +275,7 @@ void main() {
       await pumpDashboard(
         tester,
         config: AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
         withSettings: false,
       );
@@ -259,38 +288,58 @@ void main() {
       // This is better tested at the ViewModel level, which we already do.
     });
 
-    // ---- "+" Add button ----
+    // ---- "+" Add menu ----
 
-    testWidgets('shows + button in AppBar when settingsViewModel is provided', (
+    testWidgets('shows the add menu in the AppBar with settings', (
       tester,
     ) async {
-      await pumpDashboard(tester, config: AppConfig(processes: []));
+      await pumpDashboard(tester, config: const AppConfig(units: []));
 
-      expect(find.byTooltip('Add process'), findsOneWidget);
+      expect(find.byTooltip('Add'), findsOneWidget);
     });
 
-    testWidgets('does not show + button when settingsViewModel is null', (
+    testWidgets('does not show the add menu without a settings view model', (
       tester,
     ) async {
       await pumpDashboard(
         tester,
-        config: AppConfig(processes: []),
+        config: const AppConfig(units: []),
         withSettings: false,
       );
 
-      expect(find.byTooltip('Add process'), findsNothing);
+      expect(find.byTooltip('Add'), findsNothing);
     });
 
-    testWidgets('+ button navigates to ProcessEditPage in add mode', (
-      tester,
-    ) async {
-      await pumpDashboard(tester, config: AppConfig(processes: []));
+    testWidgets('add menu offers both kinds', (tester) async {
+      await pumpDashboard(tester, config: const AppConfig(units: []));
 
-      await tester.tap(find.byTooltip('Add process'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byTooltip('Add'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add process'), findsOneWidget);
+      expect(find.text('Add service group'), findsOneWidget);
+    });
+
+    testWidgets('add menu opens the process form', (tester) async {
+      await pumpDashboard(tester, config: const AppConfig(units: []));
+
+      await tester.tap(find.byTooltip('Add'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add process'));
+      await tester.pumpAndSettle();
 
       expect(find.widgetWithText(AppBar, 'Add Process'), findsOneWidget);
+    });
+
+    testWidgets('add menu opens the service group form', (tester) async {
+      await pumpDashboard(tester, config: const AppConfig(units: []));
+
+      await tester.tap(find.byTooltip('Add'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add service group'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(AppBar, 'Add Service Group'), findsOneWidget);
     });
 
     // ---- Edit icon on cards ----
@@ -299,7 +348,7 @@ void main() {
       await pumpDashboard(
         tester,
         config: AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -312,7 +361,7 @@ void main() {
       await pumpDashboard(
         tester,
         config: AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -329,7 +378,7 @@ void main() {
       await pumpDashboard(
         tester,
         config: AppConfig(
-          processes: [
+          units: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
             const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
           ],
@@ -343,7 +392,7 @@ void main() {
       final h = await pumpDashboard(
         tester,
         config: AppConfig(
-          processes: [
+          units: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
             const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
           ],
@@ -378,7 +427,7 @@ void main() {
       final h = await pumpDashboard(
         tester,
         config: AppConfig(
-          processes: [
+          units: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
             const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
           ],
@@ -407,7 +456,7 @@ void main() {
     // ---- Layout toggle ----
 
     testWidgets('layout toggle hidden on welcome screen', (tester) async {
-      await pumpDashboard(tester, config: AppConfig(processes: []));
+      await pumpDashboard(tester, config: AppConfig(units: []));
 
       expect(find.byTooltip('Switch to grid view'), findsNothing);
       expect(find.byTooltip('Switch to list view'), findsNothing);
@@ -419,7 +468,7 @@ void main() {
       await pumpDashboard(
         tester,
         config: AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
         withSettings: false,
       );
@@ -434,7 +483,7 @@ void main() {
       await pumpDashboard(
         tester,
         config: AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -450,7 +499,7 @@ void main() {
       final h = await pumpDashboard(
         tester,
         config: AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -486,7 +535,7 @@ void main() {
         tester,
         config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
-          processes: [
+          units: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
             const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
           ],
@@ -530,7 +579,7 @@ void main() {
         tester,
         config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
-          processes: [
+          units: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
             const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
           ],
@@ -563,7 +612,7 @@ void main() {
         tester,
         config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
-          processes: [
+          units: [
             for (var i = 1; i <= 12; i++)
               ProcessConfig(name: 'svc-$i', cmd: 'svc-$i.exe'),
           ],
@@ -586,7 +635,7 @@ void main() {
         tester,
         config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
-          processes: [
+          units: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
             const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
           ],
@@ -638,7 +687,7 @@ void main() {
         tester,
         config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -662,7 +711,7 @@ void main() {
         tester,
         config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -679,7 +728,7 @@ void main() {
         tester,
         config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -697,7 +746,7 @@ void main() {
         tester,
         config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -713,7 +762,7 @@ void main() {
         tester,
         config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -732,7 +781,7 @@ void main() {
         tester,
         config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
-          processes: [
+          units: [
             const ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
             const ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
           ],
@@ -750,7 +799,7 @@ void main() {
         tester,
         config: AppConfig(
           dashboardLayout: DashboardLayout.grid,
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -765,7 +814,7 @@ void main() {
         config: AppConfig(
           outputRefreshMs: 300,
           outputHistoryLimit: 500,
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -784,7 +833,7 @@ void main() {
       final h = await pumpDashboard(
         tester,
         config: AppConfig(
-          processes: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
+          units: [const ProcessConfig(name: 'svc-a', cmd: 'a.exe')],
         ),
       );
 
@@ -792,6 +841,148 @@ void main() {
       await tester.pump();
 
       expect(h.pm.toggled, ['svc-a']);
+    });
+  });
+
+  group('DashboardScreen with service groups', () {
+    const mixed = AppConfig(
+      units: [
+        ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+        ServiceConfig(name: 'Licenses', services: ['FLEXnet', 'Tomcat']),
+        ProcessConfig(name: 'svc-b', cmd: 'b.exe'),
+      ],
+    );
+
+    const members = [
+      ServiceStatus('FLEXnet', ServiceState.running),
+      ServiceStatus('Tomcat', ServiceState.stopped),
+    ];
+
+    testWidgets('renders the group card in the process flow', (tester) async {
+      final h = await pumpDashboard(tester, config: mixed);
+
+      expect(find.byType(ServiceCard), findsOneWidget);
+      expect(find.byType(ProcessCard), findsNWidgets(2));
+      expect(find.text('Licenses'), findsOneWidget);
+
+      // Members land after the first state query.
+      h.svc.emitStatuses('Licenses', members);
+      await tester.pump();
+
+      expect(find.text('FLEXnet'), findsOneWidget);
+      expect(find.text('Tomcat'), findsOneWidget);
+      expect(find.text('1/2 running · Running'), findsNothing);
+    });
+
+    testWidgets('cards follow the configured unit order', (tester) async {
+      await pumpDashboard(tester, config: mixed);
+
+      final processTop = tester.getTopLeft(find.text('svc-a')).dy;
+      final groupTop = tester.getTopLeft(find.text('Licenses')).dy;
+      final processBottom = tester.getTopLeft(find.text('svc-b')).dy;
+
+      expect(groupTop, greaterThan(processTop));
+      expect(processBottom, greaterThan(groupTop));
+    });
+
+    testWidgets('tapping the group card opens the detail page', (tester) async {
+      await pumpDashboard(tester, config: mixed);
+
+      await tester.tap(find.text('Licenses'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ServiceDetailPage), findsOneWidget);
+      expect(find.text('No activity yet'), findsOneWidget);
+    });
+
+    testWidgets('the group toggle drives the group, not the process', (
+      tester,
+    ) async {
+      final h = await pumpDashboard(tester, config: mixed);
+
+      h.svc.emitStatuses('Licenses', members);
+      await tester.pump();
+
+      // One member is up, so the group offers Stop; the process cards offer
+      // Start. Tapping the group's button must not touch the processes.
+      await tester.tap(find.byIcon(Icons.stop_circle_outlined));
+      await tester.pump();
+
+      expect(h.svc.toggled, ['Licenses']);
+      expect(h.pm.toggled, isEmpty);
+    });
+
+    testWidgets('the group edit icon opens the group form', (tester) async {
+      await pumpDashboard(tester, config: mixed);
+
+      // Two process edit icons plus the group's.
+      expect(find.byIcon(Icons.edit), findsNWidgets(3));
+      await tester.tap(find.byIcon(Icons.edit).at(1));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(AppBar, 'Edit Service Group'), findsOneWidget);
+    });
+
+    testWidgets('dragging a group card above a process persists the order', (
+      tester,
+    ) async {
+      final h = await pumpDashboard(tester, config: mixed);
+
+      await longPressDrag(
+        tester,
+        tester.getCenter(find.text('Licenses')),
+        tester.getCenter(find.text('svc-a')) - const Offset(0, 120),
+      );
+
+      expect(
+        tester.getTopLeft(find.text('Licenses')).dy,
+        lessThan(tester.getTopLeft(find.text('svc-a')).dy),
+      );
+
+      final saved = h.store.lastSaved;
+      expect(saved, isNotNull);
+      expect(saved!.units.map((u) => u.name), ['Licenses', 'svc-a', 'svc-b']);
+      expect(saved.units.first, isA<ServiceConfig>());
+    });
+
+    testWidgets('grid layout shows a compact group tile', (tester) async {
+      final h = await pumpDashboard(
+        tester,
+        config: const AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          units: [
+            ProcessConfig(name: 'svc-a', cmd: 'a.exe'),
+            ServiceConfig(name: 'Licenses', services: ['FLEXnet', 'Tomcat']),
+          ],
+        ),
+      );
+
+      expect(find.byType(ServiceGridCard), findsOneWidget);
+      expect(find.byType(ProcessGridCard), findsOneWidget);
+
+      h.svc.emitStatuses('Licenses', members);
+      await tester.pump();
+
+      expect(find.text('1/2 running'), findsOneWidget);
+    });
+
+    testWidgets('tapping the grid group tile opens the detail page', (
+      tester,
+    ) async {
+      await pumpDashboard(
+        tester,
+        config: const AppConfig(
+          dashboardLayout: DashboardLayout.grid,
+          units: [
+            ServiceConfig(name: 'Licenses', services: ['FLEXnet']),
+          ],
+        ),
+      );
+
+      await tester.tap(find.text('Licenses'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ServiceDetailPage), findsOneWidget);
     });
   });
 }

@@ -31,7 +31,7 @@ AppConfig _testConfig({
   return AppConfig(
     outputRefreshMs: outputRefreshMs,
     outputHistoryLimit: outputHistoryLimit,
-    processes: [
+    units: [
       ProcessConfig(
         name: name,
         cmd: cmd,
@@ -1603,7 +1603,7 @@ void main() {
         final testConfig = AppConfig(
           outputRefreshMs: 10,
           outputHistoryLimit: 100,
-          processes: [
+          units: [
             ProcessConfig(name: 'auto-svc', cmd: 'auto.exe', autostart: true),
             ProcessConfig(name: 'manual-svc', cmd: 'manual.exe'),
             ProcessConfig(name: 'also-auto', cmd: 'also.exe', autostart: true),
@@ -1684,7 +1684,7 @@ void main() {
         final newConfig = AppConfig(
           outputRefreshMs: 10,
           outputHistoryLimit: 100,
-          processes: [
+          units: [
             ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
             ProcessConfig(name: 'added', cmd: 'added.exe'),
           ],
@@ -1720,7 +1720,7 @@ void main() {
         final sameConfig = AppConfig(
           outputRefreshMs: 10,
           outputHistoryLimit: 100,
-          processes: [
+          units: [
             ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
           ],
         );
@@ -1757,7 +1757,7 @@ void main() {
         final newConfig = AppConfig(
           outputRefreshMs: 10,
           outputHistoryLimit: 100,
-          processes: [],
+          units: [],
         );
         writeConfig(tmpDir, newConfig);
         await fresh.reloadConfig(newConfig);
@@ -1798,7 +1798,7 @@ void main() {
           // removed flag synchronously, so when the gate opens the launch
           // sequence must kill the just-launched process and bail before
           // any side effect (pid write, pipeline wiring, exit listener).
-          await pm.reloadConfig(AppConfig(processes: []));
+          await pm.reloadConfig(AppConfig(units: []));
 
           mockRunner.startGate!.complete();
           await startFuture;
@@ -1835,7 +1835,7 @@ void main() {
           final states = <ProcState>[];
           final sub = pm.stateStream('test-svc').listen(states.add);
 
-          await pm.reloadConfig(AppConfig(processes: []));
+          await pm.reloadConfig(AppConfig(units: []));
 
           // OS process killed, pid file deleted, name inert.
           expect(mockRunner.killedPids, contains(handle.pid));
@@ -1854,7 +1854,7 @@ void main() {
 
           // Idempotence: a second removal of the same name (controller
           // already gone) is a safe no-op — no double kill, no throw.
-          await pm.reloadConfig(AppConfig(processes: []));
+          await pm.reloadConfig(AppConfig(units: []));
           expect(mockRunner.killedPids, [handle.pid]);
           expect(mockRunner.starts.length, 1);
           await sub.cancel();
@@ -1889,7 +1889,7 @@ void main() {
         expect(fresh.getState('test-svc'), ProcState.cooldown);
 
         // Remove while cooling down: no restart may fire after the window.
-        await fresh.reloadConfig(AppConfig(processes: []));
+        await fresh.reloadConfig(AppConfig(units: []));
         await Future<void>.delayed(const Duration(milliseconds: 200));
         expect(mockRunner.starts.length, 2);
         expect(fresh.getState('test-svc'), ProcState.stopped);
@@ -1912,7 +1912,7 @@ void main() {
         final sub = pm.stateStream('test-svc').listen(states.add);
 
         final stopFuture = pm.stop('test-svc');
-        await pm.reloadConfig(AppConfig(processes: []));
+        await pm.reloadConfig(AppConfig(units: []));
         await stopFuture;
 
         expect(pm.getState('test-svc'), ProcState.stopped);
@@ -1945,7 +1945,7 @@ void main() {
           final newConfig = AppConfig(
             outputRefreshMs: 10,
             outputHistoryLimit: 100,
-            processes: [
+            units: [
               ProcessConfig(name: 'new-svc', cmd: 'new.exe', autostart: true),
             ],
           );
@@ -1983,7 +1983,7 @@ void main() {
         final config = AppConfig(
           outputRefreshMs: 10,
           outputHistoryLimit: 100,
-          processes: [
+          units: [
             ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
           ],
         );
@@ -2017,7 +2017,7 @@ void main() {
         final sameConfig = AppConfig(
           outputRefreshMs: 10,
           outputHistoryLimit: 100,
-          processes: [
+          units: [
             ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
           ],
         );
@@ -2056,7 +2056,7 @@ void main() {
         final sameConfig = AppConfig(
           outputRefreshMs: 10,
           outputHistoryLimit: 100,
-          processes: [
+          units: [
             ProcessConfig(name: 'svc1', cmd: 'svc1.exe', autostart: true),
           ],
         );
@@ -2080,7 +2080,7 @@ void main() {
             AppConfig(
               outputRefreshMs: 10,
               outputHistoryLimit: 100,
-              processes: [
+              units: [
                 ProcessConfig(name: 'doomed-a', cmd: 'a.exe'),
                 ProcessConfig(name: 'doomed-b', cmd: 'b.exe'),
               ],
@@ -2110,7 +2110,7 @@ void main() {
           mockRunner.killPidGates.add(Completer<void>()..complete());
           final gateB = Completer<void>();
           mockRunner.killPidGates.add(gateB);
-          final reloadFuture = fresh.reloadConfig(AppConfig(processes: []));
+          final reloadFuture = fresh.reloadConfig(AppConfig(units: []));
           await Future<void>.delayed(Duration.zero);
 
           // Facade call for the removed name during the window: inert.

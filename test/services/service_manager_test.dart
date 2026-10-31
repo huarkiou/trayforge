@@ -17,7 +17,7 @@ void main() {
   late ServiceManager manager;
 
   AppConfig configWith(List<ServiceConfig> groups) =>
-      AppConfig(servicePollMs: 1000, services: groups);
+      AppConfig(servicePollMs: 1000, units: groups);
 
   void write(AppConfig config) => writeConfig(tmpDir, config);
 

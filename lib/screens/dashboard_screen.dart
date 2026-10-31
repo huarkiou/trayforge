@@ -3,32 +3,35 @@ import 'package:flutter_reorderable_grid_view/widgets/widgets.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/screens/process_detail_screen.dart';
 import 'package:trayforge/screens/process_edit_page.dart';
-import 'package:trayforge/screens/services_page.dart';
+import 'package:trayforge/screens/service_detail_page.dart';
+import 'package:trayforge/screens/service_edit_page.dart';
 import 'package:trayforge/screens/settings_page.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
-import 'package:trayforge/viewmodels/services_viewmodel.dart';
+import 'package:trayforge/viewmodels/service_viewmodel.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 import 'package:trayforge/widgets/process_card.dart';
+import 'package:trayforge/widgets/service_card.dart';
 
-/// Dashboard screen showing process cards or a welcome screen.
+/// What the AppBar "+" menu can add.
+enum _AddKind { process, serviceGroup }
+
+/// Dashboard screen: one card flow of processes and service groups.
 ///
-/// When no processes are configured, displays a welcome screen with an
-/// "Add Process" button. When processes exist, shows the configured layout:
-/// a scrollable list of [ProcessCard] widgets or an adaptive grid of
-/// [ProcessGridCard] widgets, switchable via an AppBar toggle. On startup,
-/// if a corrupted config was detected, shows an alert dialog before
-/// rendering.
+/// When nothing is configured, displays a welcome screen with both add
+/// actions. Otherwise shows the configured layout: a scrollable list of cards
+/// or an adaptive grid of compact tiles, switchable via an AppBar toggle. Both
+/// kinds share one ordered list (`AppConfig.units`), so a long-press drag moves
+/// a service group between process cards and back. On startup, if a corrupted
+/// config was detected, shows an alert dialog before rendering.
 class DashboardScreen extends StatefulWidget {
   final DashboardViewModel viewModel;
   final SettingsViewModel? settingsViewModel;
-  final ServicesViewModel? servicesViewModel;
 
   const DashboardScreen({
     super.key,
     required this.viewModel,
     this.settingsViewModel,
-    this.servicesViewModel,
   });
 
   @override
@@ -87,7 +90,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             settingsViewModel?.dashboardLayout == DashboardLayout.list;
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Processes'),
+            title: const Text('Dashboard'),
             actions: [
               if (settingsViewModel != null && !isEmpty)
                 IconButton(
@@ -100,26 +103,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               if (settingsViewModel != null)
-                IconButton(
+                PopupMenuButton<_AddKind>(
                   icon: const Icon(Icons.add),
-                  tooltip: 'Add process',
-                  onPressed: () => _openAddPage(context),
-                ),
-              if (widget.servicesViewModel != null)
-                IconButton(
-                  icon: const Icon(Icons.dns_outlined),
-                  tooltip: 'Services',
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ServicesPage(
-                          viewModel: widget.servicesViewModel!,
-                          settingsViewModel: settingsViewModel,
-                        ),
-                      ),
-                    );
+                  tooltip: 'Add',
+                  onSelected: (kind) => switch (kind) {
+                    _AddKind.process => _openAddProcessPage(context),
+                    _AddKind.serviceGroup => _openAddServicePage(context),
                   },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: _AddKind.process,
+                      child: Text('Add process'),
+                    ),
+                    PopupMenuItem(
+                      value: _AddKind.serviceGroup,
+                      child: Text('Add service group'),
+                    ),
+                  ],
                 ),
               if (settingsViewModel != null)
                 IconButton(
@@ -146,19 +146,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildWelcomeBody(BuildContext context) {
+    final canEdit = widget.settingsViewModel != null;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'No processes configured',
+            'No processes or service groups configured',
             style: TextStyle(fontSize: 18, color: Colors.grey),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () => _openAddPage(context),
-            icon: const Icon(Icons.add),
-            label: const Text('Add Process'),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              FilledButton.icon(
+                onPressed: canEdit ? () => _openAddProcessPage(context) : null,
+                icon: const Icon(Icons.add),
+                label: const Text('Add Process'),
+              ),
+              OutlinedButton.icon(
+                onPressed: canEdit ? () => _openAddServicePage(context) : null,
+                icon: const Icon(Icons.dns_outlined),
+                label: const Text('Add Service Group'),
+              ),
+            ],
           ),
         ],
       ),
@@ -175,25 +189,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildListBody(BuildContext context) {
+    final entries = widget.viewModel.entries;
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: widget.viewModel.processViewModels.length,
+      itemCount: entries.length,
       buildDefaultDragHandles: false,
       onReorderItem: (oldIndex, newIndex) {
         widget.settingsViewModel?.reorderItem(oldIndex, newIndex);
       },
       itemBuilder: (context, index) {
-        final vm = widget.viewModel.processViewModels[index];
+        final entry = entries[index];
         // Long-press anywhere on the card to start a reorder drag;
         // quick taps pass through to the card's own handlers.
         return ReorderableDelayedDragStartListener(
-          key: ValueKey(vm.name),
+          key: ValueKey(entry.id),
           index: index,
-          child: ProcessCard(
-            viewModel: vm,
-            onEditTap: () => _openEditPage(context, vm.name),
-            onTap: () => _openDetail(context, vm),
-          ),
+          child: switch (entry) {
+            ProcessEntry(:final viewModel) => ProcessCard(
+              viewModel: viewModel,
+              onEditTap: () => _openEditProcess(context, viewModel.name),
+              onTap: () => _openProcessDetail(context, viewModel),
+            ),
+            ServiceEntry(:final viewModel) => ServiceCard(
+              viewModel: viewModel,
+              onEditTap: () => _openEditService(context, viewModel.name),
+              onTap: () => _openServiceDetail(context, viewModel),
+            ),
+          },
         );
       },
     );
@@ -206,9 +228,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// pre-adjusted index contract as `ReorderableListView.onReorderItem`),
   /// so the entities pass through to the settings reorder path unchanged.
   Widget _buildGridBody(BuildContext context) {
+    final entries = widget.viewModel.entries;
     return ReorderableBuilder.builder(
       scrollController: _gridScrollController,
-      itemCount: widget.viewModel.processViewModels.length,
+      itemCount: entries.length,
       onReorderPositions: (entities) {
         for (final entity in entities) {
           widget.settingsViewModel?.reorderItem(
@@ -230,18 +253,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // shorter than a square tile, with room left for a WebUI URL.
           childAspectRatio: 1.13,
         ),
-        itemCount: widget.viewModel.processViewModels.length,
+        itemCount: entries.length,
         itemBuilder: (context, index) {
-          final vm = widget.viewModel.processViewModels[index];
-          return itemBuilder(
-            ProcessGridCard(
-              key: ValueKey(vm.name),
-              viewModel: vm,
-              onEditTap: () => _openEditPage(context, vm.name),
-              onTap: () => _openDetail(context, vm),
+          final entry = entries[index];
+          return itemBuilder(switch (entry) {
+            ProcessEntry(:final viewModel) => ProcessGridCard(
+              key: ValueKey(entry.id),
+              viewModel: viewModel,
+              onEditTap: () => _openEditProcess(context, viewModel.name),
+              onTap: () => _openProcessDetail(context, viewModel),
             ),
-            index,
-          );
+            ServiceEntry(:final viewModel) => ServiceGridCard(
+              key: ValueKey(entry.id),
+              viewModel: viewModel,
+              onEditTap: () => _openEditService(context, viewModel.name),
+              onTap: () => _openServiceDetail(context, viewModel),
+            ),
+          }, index);
         },
       ),
     );
@@ -253,42 +281,92 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  void _openDetail(BuildContext context, ProcessViewModel vm) {
+  void _openProcessDetail(BuildContext context, ProcessViewModel vm) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ProcessDetailPage(
           viewModel: vm,
-          onEditTap: () => _openEditPage(context, vm.name),
+          onEditTap: () => _openEditProcess(context, vm.name),
         ),
       ),
     );
   }
 
-  void _openAddPage(BuildContext context) {
-    _navigateToEdit(context, null, null, null);
+  void _openServiceDetail(BuildContext context, ServiceViewModel vm) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ServiceDetailPage(
+          viewModel: vm,
+          onEditTap: () => _openEditService(context, vm.name),
+        ),
+      ),
+    );
   }
 
-  void _openEditPage(BuildContext context, String name) {
-    if (widget.settingsViewModel == null) return;
-    final processes = widget.settingsViewModel!.processes;
-    final editIndex = processes.indexWhere((p) => p.name == name);
-    if (editIndex == -1) return;
-    _navigateToEdit(context, processes[editIndex], editIndex, null);
+  // ---- Add / edit navigation ----
+
+  void _openAddProcessPage(BuildContext context) {
+    _openProcessEdit(context, null, null);
   }
 
-  void _navigateToEdit(
+  void _openEditProcess(BuildContext context, String name) {
+    final settings = widget.settingsViewModel;
+    if (settings == null) return;
+    final index = settings.units.indexWhere(
+      (u) => u is ProcessConfig && u.name == name,
+    );
+    if (index == -1) return;
+    _openProcessEdit(context, settings.units[index] as ProcessConfig, index);
+  }
+
+  void _openProcessEdit(
     BuildContext context,
     ProcessConfig? initial,
     int? editIndex,
-    String? name,
   ) {
-    if (widget.settingsViewModel == null) return;
+    final settings = widget.settingsViewModel;
+    if (settings == null) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
         builder: (_) => ProcessEditPage(
-          settingsViewModel: widget.settingsViewModel!,
+          settingsViewModel: settings,
+          initial: initial,
+          editIndex: editIndex,
+        ),
+      ),
+      (route) => route.isFirst,
+    );
+  }
+
+  void _openAddServicePage(BuildContext context) {
+    _openServiceEdit(context, null, null);
+  }
+
+  void _openEditService(BuildContext context, String name) {
+    final settings = widget.settingsViewModel;
+    if (settings == null) return;
+    final index = settings.units.indexWhere(
+      (u) => u is ServiceConfig && u.name == name,
+    );
+    if (index == -1) return;
+    _openServiceEdit(context, settings.units[index] as ServiceConfig, index);
+  }
+
+  void _openServiceEdit(
+    BuildContext context,
+    ServiceConfig? initial,
+    int? editIndex,
+  ) {
+    final settings = widget.settingsViewModel;
+    if (settings == null) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ServiceEditPage(
+          settingsViewModel: settings,
           initial: initial,
           editIndex: editIndex,
         ),
