@@ -118,6 +118,7 @@ Future<void> main(List<String> args) async {
   _trayViewModel = TrayViewModel(
     configStore: _configStore,
     processManager: _processManager,
+    serviceManager: _serviceManager,
     onShowDashboard: _showDashboard,
     onExit: _exitApp,
     // Same path as the Settings page: reloads processes *and* service groups.

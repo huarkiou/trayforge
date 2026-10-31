@@ -6,18 +6,21 @@ import 'package:desktop_tray/desktop_tray.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
+import 'package:trayforge/services/service_manager.dart';
 
 /// Three-colour tray icon state.
 enum TrayColor { green, yellow, red }
 
 /// ViewModel for tray icon state, menu, and interactions.
 ///
-/// Listens to [ProcessManager] state changes to compute the overall tray
-/// colour and rebuild the context menu. Exposes callbacks for window
-/// visibility and app exit.
+/// Listens to [ProcessManager] and (when wired) [ServiceManager] so the tray
+/// colour and menu labels follow live state. The menu lists processes and
+/// service groups; both route through the same toggle facades the dashboard
+/// uses, so start/stop decisions never live here.
 class TrayViewModel extends ChangeNotifier {
   final ConfigStore _configStore;
   final ProcessManager _processManager;
+  final ServiceManager? serviceManager;
 
   /// Called when the user requests the Dashboard window.
   final VoidCallback onShowDashboard;
@@ -34,24 +37,44 @@ class TrayViewModel extends ChangeNotifier {
 
   TrayColor _color = TrayColor.red;
   final Map<String, ProcState> _states = {};
-  final List<StreamSubscription<void>> _subscriptions = [];
+  final Map<String, ProcState> _serviceStates = {};
+
+  /// Config-reload subscriptions. Kept apart from the per-unit state
+  /// subscriptions because [_rebuildSubscriptions] replaces those: cancelling
+  /// this list there would stop the tray from ever hearing about config
+  /// changes again.
+  final List<StreamSubscription<void>> _configSubscriptions = [];
+
+  final List<StreamSubscription<ProcState>> _stateSubscriptions = [];
 
   TrayViewModel({
     required this._configStore,
     required this._processManager,
+    this.serviceManager,
     required this.onShowDashboard,
     required this.onExit,
     this.onReloadConfig,
   }) {
     _rebuildSubscriptions();
-    _subscriptions.add(
+
+    _configSubscriptions.add(
       _processManager.onConfigReloaded.listen((_) => onConfigChanged()),
     );
+    final reloadingManager = serviceManager;
+    if (reloadingManager != null) {
+      _configSubscriptions.add(
+        reloadingManager.onConfigReloaded.listen((_) => onConfigChanged()),
+      );
+    }
   }
 
   // ---- Public API ----
 
   /// Current tray colour based on process states.
+  ///
+  /// Service groups are deliberately excluded: the colour has always meant
+  /// "how many managed processes are up", and services are not children of the
+  /// app. They show their own state in the menu labels.
   TrayColor get color => _color;
 
   /// Returns the icon asset path for the current colour.
@@ -70,10 +93,11 @@ class TrayViewModel extends ChangeNotifier {
     }
   }
 
-  /// Builds the tray context menu from the current process list.
+  /// Builds the tray context menu from the current process and service lists.
   TrayMenu buildMenu() {
     final config = _configStore.load();
     final processes = config?.processes ?? <ProcessConfig>[];
+    final services = config?.services ?? <ServiceConfig>[];
 
     final items = <TrayMenuItem>[];
 
@@ -85,6 +109,19 @@ class TrayViewModel extends ChangeNotifier {
       final isRunning = state.isActive;
       final label = isRunning ? '\u2713 $name' : '   $name';
       items.add(TrayMenuItem(key: 'proc:$name', label: label));
+    }
+
+    if (services.isNotEmpty) {
+      if (items.isNotEmpty) items.add(TrayMenuItem.separator());
+      for (final group in services) {
+        final name = group.name;
+        final state = _serviceStates[name] ?? ProcState.stopped;
+        // A group is "up" when any member is up; starting counts too, so the
+        // check appears as soon as the operation begins.
+        final isUp = state.isActive;
+        final label = isUp ? '\u2713 $name' : '   $name';
+        items.add(TrayMenuItem(key: 'svc:$name', label: label));
+      }
     }
 
     if (items.isNotEmpty) {
@@ -101,11 +138,15 @@ class TrayViewModel extends ChangeNotifier {
 
   /// Routes a tray menu click to the action behind its [key].
   ///
-  /// The keys are the same ones [buildMenu] attaches: `proc:<name>` toggles
-  /// that process, `reload` / `dashboard` / `exit` map to the fixed items.
+  /// Keys are `proc:<name>` (toggle a process), `svc:<name>` (toggle a service
+  /// group), and the fixed `reload` / `dashboard` / `exit`.
   void handleMenuAction(String key) {
     if (key.startsWith('proc:')) {
       _toggleProcess(key.substring('proc:'.length));
+      return;
+    }
+    if (key.startsWith('svc:')) {
+      _toggleService(key.substring('svc:'.length));
       return;
     }
     switch (key) {
@@ -118,7 +159,7 @@ class TrayViewModel extends ChangeNotifier {
     }
   }
 
-  /// Called when the process list changes (config reload).
+  /// Called when the process or service list changes (config reload).
   void onConfigChanged() {
     _rebuildSubscriptions();
     notifyListeners();
@@ -127,42 +168,54 @@ class TrayViewModel extends ChangeNotifier {
   /// Releases subscriptions.
   @override
   void dispose() {
-    for (final sub in _subscriptions) {
+    for (final sub in [..._configSubscriptions, ..._stateSubscriptions]) {
       sub.cancel();
     }
-    _subscriptions.clear();
+    _configSubscriptions.clear();
+    _stateSubscriptions.clear();
     super.dispose();
   }
 
   // ---- Private ----
 
   void _rebuildSubscriptions() {
-    for (final sub in _subscriptions) {
+    for (final sub in _stateSubscriptions) {
       sub.cancel();
     }
-    _subscriptions.clear();
+    _stateSubscriptions.clear();
     _states.clear();
+    _serviceStates.clear();
 
     final config = _configStore.load();
     final processes = config?.processes ?? <ProcessConfig>[];
-
-    if (processes.isEmpty) {
-      _color = TrayColor.red;
-      return;
-    }
+    final services = config?.services ?? <ServiceConfig>[];
 
     for (final proc in processes) {
       final name = proc.name;
       // Seed from ProcessManager synchronously so the colour is correct
       // before the first async stateStream event fires.
       _states[name] = _processManager.getState(name);
-      _subscriptions.add(
+      _stateSubscriptions.add(
         _processManager.stateStream(name).listen((state) {
           _states[name] = state;
           _recomputeColor(processes);
           notifyListeners();
         }),
       );
+    }
+
+    if (serviceManager != null) {
+      final groups = serviceManager!;
+      for (final group in services) {
+        final name = group.name;
+        _serviceStates[name] = groups.getState(name);
+        _stateSubscriptions.add(
+          groups.stateStream(name).listen((state) {
+            _serviceStates[name] = state;
+            notifyListeners();
+          }),
+        );
+      }
     }
 
     _recomputeColor(processes);
@@ -195,6 +248,12 @@ class TrayViewModel extends ChangeNotifier {
     // The start/stop decision lives in ProcessController.toggle — the
     // tray only routes the click through the facade.
     _processManager.toggle(name);
+  }
+
+  void _toggleService(String name) {
+    // ServiceController.toggle owns the aggregate rule (any member up → stop
+    // all), including the single UAC prompt for the whole group.
+    serviceManager?.toggle(name);
   }
 
   /// Reloads the config from disk and applies it (Path C from spec).

@@ -203,7 +203,9 @@ Behavior worth knowing:
   reported as cancelled). If TrayForge itself runs elevated, no prompt appears.
 - **Aggregate rule**: any member up → the toggle stops all members; otherwise it
   starts all members.
-- **No autostart.** Starting a group at login would prompt for UAC at login;
+- **Tray menu**: groups are listed under the processes (one section each), with a
+  check mark while a group is up; clicking one toggles it — the same single UAC
+  prompt as the card. The tray icon colour still reflects processes only.- **No autostart.** Starting a group at login would prompt for UAC at login;
   use the service's own start type for boot-time behavior.
 - **Linux**: `systemctl` is used, with `pkexec` as the escalation fallback.
 
