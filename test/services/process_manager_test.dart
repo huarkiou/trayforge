@@ -7,6 +7,7 @@ import 'package:trayforge/foundation/elevated_process_win32.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
+import 'package:trayforge/services/process_runner.dart';
 import '../helpers/test_mocks.dart';
 
 /// Creates an [AppConfig] with a single process for testing with [refreshMs]
@@ -1184,7 +1185,10 @@ void main() {
         final config = _testConfig(elevated: true);
         writeConfig(tmpDir, config);
         await pm.reloadConfig(config);
-        mockRunner.nextHandle = MockProcessHandle(pid: 4242);
+        mockRunner.nextHandle = MockProcessHandle(
+          pid: 4242,
+          launchKind: LaunchKind.uacBroker,
+        );
 
         final output = <String>[];
         pm.outputStream('test-svc').listen(output.add);
@@ -1234,7 +1238,10 @@ void main() {
         final config = _testConfig(elevated: true);
         writeConfig(tmpDir, config);
         await pm.reloadConfig(config);
-        final handle = MockProcessHandle(pid: 5001);
+        final handle = MockProcessHandle(
+          pid: 5001,
+          launchKind: LaunchKind.uacBroker,
+        );
         mockRunner.nextHandle = handle;
 
         await pm.start('test-svc');
@@ -1248,6 +1255,99 @@ void main() {
         );
         expect(pm.getState('test-svc'), ProcState.stopped);
       });
+
+      test('wires output and env for a piped elevated launch', () async {
+        final config = _testConfig(
+          elevated: true,
+          env: const {'TRAYFORGE_ELEVATED_TEST': 'yes'},
+        );
+        writeConfig(tmpDir, config);
+        await pm.reloadConfig(config);
+        // A piped handle is what the runner returns when TrayForge itself
+        // holds the administrator token, so this pins the controller's
+        // handling of that launch, not the runner's probe.
+        final handle = MockProcessHandle(pid: 6001);
+        mockRunner.nextHandle = handle;
+
+        final output = <String>[];
+        pm.outputStream('test-svc').listen(output.add);
+
+        await pm.start('test-svc');
+        handle.emitStdout('hello from the elevated child\n');
+        pm.flushNow('test-svc');
+
+        expect(mockRunner.elevatedStarts, hasLength(1));
+        expect(
+          mockRunner
+              .elevatedStarts
+              .single
+              .environment?['TRAYFORGE_ELEVATED_TEST'],
+          'yes',
+          reason: 'an inherited-token launch must apply the built environment',
+        );
+        expect(
+          output.any((l) => l.contains('hello from the elevated child')),
+          isTrue,
+          reason: 'an inherited-token launch has real stdio pipes',
+        );
+        expect(
+          output.any((l) => l.contains('no UAC prompt')),
+          isTrue,
+          reason: 'the system message must explain the inherited token',
+        );
+        expect(
+          output.any((l) => l.contains('stdout/stderr is not captured')),
+          isFalse,
+        );
+      });
+
+      test(
+        "tree-kills an elevated child that shares TrayForge's token",
+        () async {
+          final config = _testConfig(elevated: true);
+          writeConfig(tmpDir, config);
+          await pm.reloadConfig(config);
+          final handle = MockProcessHandle(pid: 6002);
+          mockRunner.nextHandle = handle;
+
+          await pm.start('test-svc');
+          await pm.stop('test-svc');
+
+          expect(
+            handle.killed,
+            isFalse,
+            reason: 'a same-token child is reachable with taskkill /t /f',
+          );
+          expect(mockRunner.killedPids, contains(6002));
+          expect(pm.getState('test-svc'), ProcState.stopped);
+        },
+      );
+
+      test(
+        'reports when a same-token elevated child cannot be killed',
+        () async {
+          final config = _testConfig(elevated: true);
+          writeConfig(tmpDir, config);
+          await pm.reloadConfig(config);
+          final handle = MockProcessHandle(pid: 6003);
+          mockRunner.nextHandle = handle;
+          mockRunner.killPidResult = false;
+
+          final output = <String>[];
+          pm.outputStream('test-svc').listen(output.add);
+
+          await pm.start('test-svc');
+          await pm.stop('test-svc');
+
+          expect(
+            output.any(
+              (l) => l.contains('Could not terminate process (PID 6003)'),
+            ),
+            isTrue,
+            reason: 'a failed tree kill must not read as a clean stop',
+          );
+        },
+      );
     });
 
     // ---- Log file tailing ----

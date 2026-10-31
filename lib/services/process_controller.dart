@@ -241,6 +241,7 @@ class ProcessController {
           executable,
           arguments,
           workingDirectory: workingDirectory,
+          environment: env,
         );
       } else {
         handle = await _processRunner.start(
@@ -283,17 +284,29 @@ class ProcessController {
       _setState(ProcState.running);
       _pushSystemMessage('Process started (PID: ${handle.pid})');
 
-      if (elevated && _logTailer == null) {
-        // A UAC-elevated child gets its own console instead of our pipes, so
-        // only the exit code and termination remain observable — unless a log
-        // file is being tailed.
+      if (elevated &&
+          handle.launchKind == LaunchKind.uacBroker &&
+          _logTailer == null) {
+        // Without an elevated TrayForge the child goes through the UAC broker,
+        // which gives it its own console instead of our pipes: only the exit
+        // code and termination remain observable — unless a log file is being
+        // tailed.
         _pushSystemMessage(
           'Elevated launch: stdout/stderr is not captured (UAC boundary); '
           'set "Log File" to stream output here',
         );
+      } else if (elevated && handle.launchKind == LaunchKind.direct) {
+        // TrayForge itself is elevated, so the child inherited the
+        // administrator token through CreateProcess instead of the broker:
+        // no UAC prompt, and its output and env are available.
+        _pushSystemMessage(
+          'Elevated launch: TrayForge is running elevated, so the child '
+          'inherits the administrator token (no UAC prompt) and its output '
+          'is captured',
+        );
       }
 
-      if (!elevated) {
+      if (handle.launchKind == LaunchKind.direct) {
         // 宽松解码:原生库(torch/CUDA 等)在 Windows 上会直接往 stderr 写
         // ANSI/GBK 字节,严格解码会抛 FormatException 中断输出流;非法字节
         // 一律替换为 U+FFFD,保证输出流不断。
@@ -585,23 +598,28 @@ class ProcessController {
 
   /// Kills [handle], choosing the mechanism that can actually reach it.
   ///
-  /// Elevated processes are terminated through the UAC broker's handle: a
-  /// non-elevated `taskkill` on an elevated pid fails with access denied, so
-  /// [IProcessHandle.kill] is tried first and the external kill is only a
-  /// fallback (it succeeds when trayforge itself runs elevated).
+  /// A handle from the UAC broker is terminated through its own process
+  /// handle: a non-elevated `taskkill` on an elevated pid fails with access
+  /// denied, so [IProcessHandle.kill] is tried first and the external kill is
+  /// only a fallback (it succeeds when trayforge itself runs elevated).
+  ///
+  /// Every other launch — including an elevated child that inherited
+  /// TrayForge's administrator token — is on the same side of the UAC
+  /// boundary, so the external tree kill is both allowed and preferable: it
+  /// also reaps the children. A failed kill of an elevated child is reported
+  /// instead of being swallowed.
   Future<void> _killHandle(IProcessHandle handle) async {
-    if (_procConfig?.elevated ?? false) {
-      if (handle.kill()) return;
-      final killed = await _processRunner.killPid(handle.pid);
-      if (!killed) {
-        _pushSystemMessage(
-          'Could not terminate elevated process (PID ${handle.pid}): '
-          'run TrayForge as administrator to stop it',
-        );
-      }
-      return;
-    }
-    await _processRunner.killPid(handle.pid);
+    final throughBroker = handle.launchKind == LaunchKind.uacBroker;
+    if (throughBroker && handle.kill()) return;
+
+    final killed = await _processRunner.killPid(handle.pid);
+    if (killed || !(_procConfig?.elevated ?? false)) return;
+    _pushSystemMessage(
+      throughBroker
+          ? 'Could not terminate elevated process (PID ${handle.pid}): '
+                'run TrayForge as administrator to stop it'
+          : 'Could not terminate process (PID ${handle.pid})',
+    );
   }
 
   /// Starts tailing [ProcessConfig.logFile] into the output pipeline.

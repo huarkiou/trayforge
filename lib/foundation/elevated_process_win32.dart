@@ -6,9 +6,10 @@
 ///
 /// Two consequences of going through the broker matter for trayforge:
 ///
-/// 1. **No output pipes.** The broker creates the child with a fresh console
-///    instead of inheriting the parent's stdout/stderr handles, so an
-///    elevated child's output can never reach trayforge's log view.
+/// 1. **No output pipes on the broker path.** The broker creates the child
+///    with a fresh console instead of inheriting the parent's
+///    stdout/stderr handles, so an elevated child's output cannot reach
+///    trayforge's log view while it goes through the broker.
 /// 2. **The handle is still useful.** `SEE_MASK_NOCLOSEPROCESS` hands back the
 ///    process handle, which is enough to read the exit code
 ///    ([GetExitCodeProcess]) and to terminate the process
@@ -16,6 +17,11 @@
 ///
 /// `ShellExecuteExW` cannot take an environment block or a job object, so the
 /// child does not see the environment trayforge builds for normal launches.
+///
+/// This is the launch path for an **unprivileged** TrayForge. When TrayForge
+/// itself runs elevated, `RealProcessRunner` starts the child with a plain
+/// `CreateProcess` instead: the child inherits the administrator token, so no
+/// broker is involved and the pipes and environment keep working.
 library;
 
 import 'dart:async';

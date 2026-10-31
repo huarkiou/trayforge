@@ -3,17 +3,38 @@ import 'dart:io';
 
 import 'package:trayforge/foundation/elevated_process_win32.dart';
 import 'package:trayforge/foundation/process_cwd.dart' as process_cwd;
+import 'package:trayforge/foundation/process_elevation_win32.dart';
+
+/// How a launched child can be reached.
+///
+/// The launch route decides what the returned [IProcessHandle] supports:
+/// output streams, the built environment, and which kill mechanism works.
+enum LaunchKind {
+  /// Created directly with TrayForge's own token (a plain `CreateProcess`):
+  /// real stdio pipes, the built environment applies, and the OS-level tree
+  /// kill can reach it. Ordinary launches and an elevated launch inherited
+  /// from an already-elevated TrayForge both take this route.
+  direct,
+
+  /// Created through the UAC broker (`runas`): a fresh console instead of
+  /// pipes, the environment block is ignored, and only the broker's process
+  /// handle can terminate it.
+  uacBroker,
+}
 
 /// Abstract handle to a running process.
 ///
-/// Exposes the minimal surface that [ProcessManager] needs:
-/// pid, stdout/stderr byte streams, exit code future, and a kill
-/// method. Mock implementations use this interface in tests.
+/// Exposes the minimal surface the [ProcessController] and [ProcessManager]
+/// need: pid, stdout/stderr byte streams, exit code future, [launchKind], and
+/// a kill method. Mock implementations use this interface in tests.
 abstract class IProcessHandle {
   int get pid;
   Stream<List<int>> get stdout;
   Stream<List<int>> get stderr;
   Future<int> get exitCode;
+
+  /// How the child was launched, and therefore what this handle supports.
+  LaunchKind get launchKind;
 
   /// Kills the process.
   ///
@@ -33,18 +54,29 @@ abstract class IProcessRunner {
     bool runInShell,
   });
 
-  /// Starts [executable] elevated (Windows: UAC consent prompt).
+  /// Starts [executable] elevated.
   ///
-  /// The returned handle carries **no output streams** — an elevated process
-  /// cannot inherit the parent's stdout/stderr pipes — but it can report the
-  /// exit code and be terminated.
+  /// On Windows this is one of two paths:
   ///
-  /// Throws [ElevationException] when the process could not be started (the
-  /// user declined the prompt, access denied, unsupported platform, …).
+  /// - TrayForge is **not** elevated: the child goes through the UAC broker
+  ///   (one consent prompt per launch). The broker ignores [environment] and
+  ///   the returned handle has [LaunchKind.uacBroker]: no output streams, so
+  ///   only the exit code and termination are observable.
+  /// - TrayForge **is** elevated: the child is created with the inherited
+  ///   administrator token (plain `CreateProcess`), so no prompt appears and
+  ///   stdout/stderr and [environment] work like a normal launch
+  ///   ([LaunchKind.direct]).
+  ///
+  /// Throws [ElevationException] when the elevated start itself cannot be
+  /// performed (the user declined the prompt, access denied, unsupported
+  /// platform, …). In the inherited-token case the launch is an ordinary
+  /// [start], so its failures surface as that path's errors (for example a
+  /// [ProcessException] from `Process.start`).
   Future<IProcessHandle> startElevated(
     String executable,
     List<String> arguments, {
     String? workingDirectory,
+    Map<String, String>? environment,
   });
 
   /// Returns `true` if a process with [executableName] is already
@@ -99,6 +131,9 @@ class RealProcessHandle implements IProcessHandle {
   Future<int> get exitCode => _process.exitCode;
 
   @override
+  LaunchKind get launchKind => LaunchKind.direct;
+
+  @override
   bool kill({ProcessSignal signal = ProcessSignal.sigkill}) {
     return _process.kill(signal);
   }
@@ -129,12 +164,39 @@ class ElevatedProcessHandle implements IProcessHandle {
   Future<int> get exitCode => _process.exitCode;
 
   @override
+  LaunchKind get launchKind => LaunchKind.uacBroker;
+
+  @override
   bool kill({ProcessSignal signal = ProcessSignal.sigkill}) =>
       _process.terminate();
 }
 
 /// Launches real OS processes via [Process.start].
 class RealProcessRunner implements IProcessRunner {
+  /// Creates a runner whose elevated path follows TrayForge's own token.
+  ///
+  /// [elevationProbe] is injectable so tests can drive both launch paths
+  /// without an actually elevated process.
+  RealProcessRunner({bool Function()? elevationProbe})
+    : _elevationProbe = elevationProbe ?? isCurrentProcessElevated;
+
+  final bool Function() _elevationProbe;
+
+  /// Whether this TrayForge process holds an elevated token, asked per
+  /// elevated launch.
+  ///
+  /// A failed probe never fails the launch: the broker path still elevates,
+  /// it just asks for consent. The answer is deliberately not cached — the
+  /// probe is two cheap Win32 calls, and caching a failed query would
+  /// permanently demote an elevated TrayForge to the prompting path.
+  bool _currentProcessElevated() {
+    try {
+      return _elevationProbe();
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Future<bool> isProcessRunning(String executableName) async {
     try {
@@ -270,10 +332,23 @@ class RealProcessRunner implements IProcessRunner {
     String executable,
     List<String> arguments, {
     String? workingDirectory,
+    Map<String, String>? environment,
   }) async {
     if (!Platform.isWindows) {
       throw const ElevationException(
         'Elevated launch is only supported on Windows',
+      );
+    }
+    // An elevated TrayForge already holds the administrator token, so a plain
+    // CreateProcess child inherits it: no UAC prompt, no broker, and the
+    // stdout/stderr pipes and the built environment survive. The broker is
+    // what costs those things, so it is only used when it is needed.
+    if (_currentProcessElevated()) {
+      return start(
+        executable,
+        arguments,
+        workingDirectory: workingDirectory,
+        environment: environment,
       );
     }
     final process = launchElevated(

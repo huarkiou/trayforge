@@ -113,20 +113,26 @@ class ProcessConfig extends UnitConfig {
   final Map<String, String>? env;
   final bool cleanupCwd;
 
-  /// Launch this process elevated (Windows: UAC consent prompt).
+  /// Launch this process elevated (Windows: administrator token).
   ///
-  /// The elevated child is created through the UAC broker, so it gets its own
-  /// console instead of the parent's stdout/stderr pipes: its output is **not**
-  /// captured by trayforge, and its environment is not the one built here.
-  /// Exit code and termination still work — the broker's process handle is
-  /// kept for that. Pair with [logFile] to see output at all.
+  /// When TrayForge is not elevated, the child is created through the UAC
+  /// broker: it gets its own console instead of the parent's stdout/stderr
+  /// pipes, so its output is **not** captured and the environment built here
+  /// is not applied. Exit code and termination still work — the broker's
+  /// process handle is kept for that. Pair with [logFile] to see output at
+  /// all in that case.
+  ///
+  /// When TrayForge itself runs elevated, the child inherits that token
+  /// (plain `CreateProcess`): no prompt appears, and output, [env] and the
+  /// tree kill behave like a normal launch.
   final bool elevated;
 
   /// Log file to tail into the output pane, or `null` for none.
   ///
   /// Relative paths are resolved against [cwd]. Only lines appended after the
   /// launch are shown, so a long-running process does not replay its backlog.
-  /// This is the only way to see output from an [elevated] process.
+  /// This is the only way to see output from an [elevated] process while
+  /// TrayForge is not elevated.
   final String? logFile;
 
   const ProcessConfig({

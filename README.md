@@ -32,11 +32,14 @@ auto-start, auto-restart on crash, and colour-coded tray icon at a glance.
 - **Working directory cleanup** — `cleanup_cwd` kills residual processes from the
   same working directory before starting a new instance.
 - **Elevated launch (UAC)** — mark a process `elevated: true` and TrayForge
-  launches it through the Windows UAC broker; the exit code still reaches the
-  dashboard.
+  launches it with administrator rights: through the UAC broker (one prompt per
+  launch) while TrayForge is unprivileged, or with the inherited administrator
+  token (no prompt, output captured) when TrayForge itself runs elevated. The
+  exit code always reaches the dashboard.
 - **Log-file tailing** — set `log_file` and lines the process appends to that
-  file show up in the output pane. This is how elevated processes surface
-  output at all.
+  file show up in the output pane. It is the only output channel for elevated
+  processes while TrayForge is not elevated, and a generic second source
+  otherwise.
 - **Native service groups** — manage Windows services (or systemd units) directly:
   live state from the OS, one UAC prompt per start/stop of the whole group,
   structured errors, no shell script in between. See
@@ -133,28 +136,41 @@ and the next save rewrites it as `units`.
 | `delete_before_start`  | `string[]`        | Delete these files (relative to `cwd`) before launching. Path-escape safe.                         |
 | `env`                  | `object?`         | Extra environment variables（merged on top of system env）.                                       |
 | `encoding`             | `string?`         | Process output encoding. Defaults to UTF-8.                                                        |
-| `elevated`             | `bool`            | Launch elevated（Windows UAC prompt）. stdout/stderr is not captured and `env` is not applied.       |
+| `elevated`             | `bool`            | Launch with administrator rights（UAC prompt only while TrayForge is not elevated）.                  |
 | `log_file`             | `string?`         | Tail this file into the output pane（relative to `cwd`）. Appended lines only.                      |
 
 ### Elevated processes (Windows)
 
-`elevated: true` starts the process through the UAC broker
-(`ShellExecuteEx` with the `runas` verb), so Windows shows a consent prompt.
-Exit code and stop still work — TrayForge keeps the broker's process handle.
+`elevated: true` asks Windows to start the process with administrator rights.
+How that happens depends on TrayForge's own token.
 
-Two limits are inherent to UAC:
+**TrayForge is not elevated** (the normal case): the child goes through the UAC
+broker (`ShellExecuteEx` with the `runas` verb), so Windows shows a consent
+prompt. Exit code and stop still work — TrayForge keeps the broker's process
+handle. Two limits are inherent to that path:
 
 - **No stdout/stderr.** An elevated child gets its own console instead of
   TrayForge's pipes. Set `log_file` and have the process append to that file —
-  TrayForge tails it into the output pane, which is the only way to see what an
-  elevated process did.
+  TrayForge tails it into the output pane, which is the only way to see what
+  the process did.
 - **No `env`.** `ShellExecuteEx` cannot pass an environment block; the child
   sees the environment Windows gives an elevated process.
 
-Each launch (including a crash-restart) prompts again. A script that
-self-elevates (`Start-Process -Verb RunAs`) does not need this flag — but
-TrayForge then tracks the short-lived launcher, not the elevated child, and
-loses the exit code.
+When TrayForge is not elevated, each launch (including a crash-restart) prompts
+again.
+
+**TrayForge itself runs elevated** (started with "Run as administrator", or
+from a scheduled task with highest privileges): the child is created with the
+inherited administrator token (plain `CreateProcess`). No prompt appears, its
+stdout/stderr reaches the output pane, `env` is applied, and stopping it is a
+tree kill like any other process. The trade-off is global: every process
+TrayForge starts — including those without `elevated` — runs as administrator.
+In this mode `log_file` is still useful (file-based logging, daemons) but no
+longer the only output channel.
+
+A script that self-elevates (`Start-Process -Verb RunAs`) does not need this
+flag — but TrayForge then tracks the short-lived launcher, not the elevated
+child, and loses the exit code.
 
 ### Log-file tailing
 
@@ -284,6 +300,7 @@ lib/
 │   ├── output_pipeline.dart           # ANSI stripping, WebUI URL detection
 │   ├── shlex.dart                     # Shell-like command splitting
 │   ├── elevated_process_win32.dart    # UAC launch broker
+│   ├── process_elevation_win32.dart   # TokenElevation probe (already elevated?)
 │   ├── log_file_tailer.dart           # log_file tailing into the output pane
 │   ├── service_host.dart              # Service-control seam
 │   ├── service_host_win32.dart        # Windows SCM adapter (FFI)

@@ -22,13 +22,22 @@ class MockProcessHandle implements IProcessHandle {
   bool killed = false;
   ProcessSignal? lastSignal;
 
-  MockProcessHandle({this.pid = 12345});
+  /// Whether this fake models a piped launch (real streams) or a UAC-broker
+  /// handle, whose streams are empty.
+  @override
+  final LaunchKind launchKind;
+
+  MockProcessHandle({this.pid = 12345, this.launchKind = LaunchKind.direct});
 
   @override
-  Stream<List<int>> get stdout => _stdoutController.stream;
+  Stream<List<int>> get stdout => launchKind == LaunchKind.direct
+      ? _stdoutController.stream
+      : Stream<List<int>>.empty();
 
   @override
-  Stream<List<int>> get stderr => _stderrController.stream;
+  Stream<List<int>> get stderr => launchKind == LaunchKind.direct
+      ? _stderrController.stream
+      : Stream<List<int>>.empty();
 
   @override
   Future<int> get exitCode => _exitCompleter.future;
@@ -137,13 +146,14 @@ class MockProcessRunner implements IProcessRunner {
     String executable,
     List<String> arguments, {
     String? workingDirectory,
+    Map<String, String>? environment,
   }) async {
     elevatedStarts.add(
       CapturedStart(
         executable: executable,
         arguments: arguments,
         workingDirectory: workingDirectory,
-        environment: null,
+        environment: environment,
         runInShell: false,
       ),
     );

@@ -402,10 +402,11 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             ),
             CheckboxListTile(
               value: _elevated,
-              title: const Text('Elevated (UAC)'),
+              title: const Text('Run as administrator'),
               subtitle: const Text(
-                'Launch with administrator rights — Windows shows a UAC prompt. '
-                'Elevated output is not captured and env vars are not applied.',
+                'Launch with administrator rights. Windows shows a UAC prompt '
+                'only while TrayForge itself is not elevated; when it is, '
+                'output and env vars are captured like any other process.',
               ),
               onChanged: (v) => setState(() => _elevated = v ?? false),
               controlAffinity: ListTileControlAffinity.leading,
@@ -429,7 +430,8 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
                 labelText: 'Log File',
                 helperText:
                     'Tail this file into the output pane (relative to cwd). '
-                    'Required to see output from elevated processes.',
+                    'The only output channel for elevated processes while '
+                    'TrayForge is not elevated.',
                 hintText: r'e.g. logs\app.log',
                 border: OutlineInputBorder(),
               ),

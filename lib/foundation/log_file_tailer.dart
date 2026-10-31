@@ -1,9 +1,11 @@
 /// Tails a log file and emits the lines appended to it.
 ///
-/// Needed because an elevated process (UAC broker) cannot inherit TrayForge's
-/// stdout/stderr pipes: the only output channel left is a file the process
-/// writes itself. A tailer also serves ordinary processes that already log to
-/// a file instead of stdout.
+/// Needed because a process started through the UAC broker cannot inherit
+/// TrayForge's stdout/stderr pipes: while TrayForge is unprivileged, a file the
+/// process writes itself is the only output channel left. A tailer also serves
+/// ordinary processes that already log to a file instead of stdout, and it
+/// stays a useful second source when an elevated TrayForge inherits its token
+/// and keeps the pipes.
 ///
 /// Semantics, chosen to match a supervised process starting once:
 ///

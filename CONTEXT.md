@@ -30,11 +30,15 @@ env).
 
 ## Elevated launch
 
-A launch with `ProcessConfig.elevated`: on Windows the child is started through
-the UAC broker (`ShellExecuteExW` with the `runas` verb), so the user consents
-once per launch. The UAC boundary costs the output streams and the built
-environment; exit code and termination survive because the broker's process
-handle is kept. See ADR 004.
+A launch with `ProcessConfig.elevated`. If TrayForge itself holds an elevated
+token, the child is created with the inherited administrator token (plain
+`CreateProcess`): no prompt, and the pipes, environment and tree kill work like
+a normal launch. Otherwise, on Windows, the child is started through the UAC
+broker (`ShellExecuteExW` with the `runas` verb), so the user consents once per
+launch; the UAC boundary costs the output streams and the built environment,
+while exit code and termination survive because the broker's process handle is
+kept. `IProcessHandle.launchKind` tells the two handle kinds apart. See
+ADR 004.
 
 ## Service Group
 
@@ -86,7 +90,8 @@ The second output source: when `ProcessConfig.logFile` is set, a
 pipeline as stdout (ANSI strip, history cap, `webui_pattern`). It starts before
 the launch (baseline = current end of file), replays a shrinking file from the
 start, and flushes a trailing partial line when the process exits. It is the
-only way to see an elevated process's output.
+only way to see an elevated process's output while TrayForge itself is not
+elevated.
 
 ## ProcState
 
