@@ -7,7 +7,25 @@ concepts the code is organised around; see `docs/adr/` for decisions.
 
 A configured external program trayforge manages. Declared in the config as
 a `ProcessConfig` (name, command, cwd, encoding, singleton, autostart,
-maxRestarts, webuiPattern, cleanupCwd, deleteBeforeStart).
+maxRestarts, webuiPattern, cleanupCwd, deleteBeforeStart, elevated, logFile,
+env).
+
+## Elevated launch
+
+A launch with `ProcessConfig.elevated`: on Windows the child is started through
+the UAC broker (`ShellExecuteExW` with the `runas` verb), so the user consents
+once per launch. The UAC boundary costs the output streams and the built
+environment; exit code and termination survive because the broker's process
+handle is kept. See ADR 004.
+
+## Log tailing
+
+The second output source: when `ProcessConfig.logFile` is set, a
+`LogFileTailer` follows that file and feeds appended lines into the same output
+pipeline as stdout (ANSI strip, history cap, `webui_pattern`). It starts before
+the launch (baseline = current end of file), replays a shrinking file from the
+start, and flushes a trailing partial line when the process exits. It is the
+only way to see an elevated process's output.
 
 ## ProcState
 

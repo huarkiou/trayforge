@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:trayforge/foundation/elevated_process_win32.dart';
 import 'package:trayforge/foundation/process_cwd.dart' as process_cwd;
 
 /// Abstract handle to a running process.
@@ -30,6 +31,20 @@ abstract class IProcessRunner {
     String? workingDirectory,
     Map<String, String>? environment,
     bool runInShell,
+  });
+
+  /// Starts [executable] elevated (Windows: UAC consent prompt).
+  ///
+  /// The returned handle carries **no output streams** — an elevated process
+  /// cannot inherit the parent's stdout/stderr pipes — but it can report the
+  /// exit code and be terminated.
+  ///
+  /// Throws [ElevationException] when the process could not be started (the
+  /// user declined the prompt, access denied, unsupported platform, …).
+  Future<IProcessHandle> startElevated(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
   });
 
   /// Returns `true` if a process with [executableName] is already
@@ -87,6 +102,35 @@ class RealProcessHandle implements IProcessHandle {
   bool kill({ProcessSignal signal = ProcessSignal.sigkill}) {
     return _process.kill(signal);
   }
+}
+
+/// Wraps a process started through the UAC broker so it satisfies
+/// [IProcessHandle].
+///
+/// Output streams are always empty: the broker gives an elevated child its own
+/// console, so there is nothing to read here. [kill] terminates the process
+/// through the broker's handle instead of `taskkill`, which a non-elevated
+/// trayforge cannot use on an elevated pid.
+class ElevatedProcessHandle implements IProcessHandle {
+  final ElevatedProcess _process;
+
+  ElevatedProcessHandle(this._process);
+
+  @override
+  int get pid => _process.pid;
+
+  @override
+  Stream<List<int>> get stdout => Stream<List<int>>.empty();
+
+  @override
+  Stream<List<int>> get stderr => Stream<List<int>>.empty();
+
+  @override
+  Future<int> get exitCode => _process.exitCode;
+
+  @override
+  bool kill({ProcessSignal signal = ProcessSignal.sigkill}) =>
+      _process.terminate();
 }
 
 /// Launches real OS processes via [Process.start].
@@ -219,5 +263,24 @@ class RealProcessRunner implements IProcessRunner {
       runInShell: runInShell,
     );
     return RealProcessHandle(process);
+  }
+
+  @override
+  Future<IProcessHandle> startElevated(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+  }) async {
+    if (!Platform.isWindows) {
+      throw const ElevationException(
+        'Elevated launch is only supported on Windows',
+      );
+    }
+    final process = launchElevated(
+      executable,
+      arguments,
+      workingDirectory: workingDirectory,
+    );
+    return ElevatedProcessHandle(process);
   }
 }

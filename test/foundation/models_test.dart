@@ -132,6 +132,51 @@ void main() {
         expect(config.env, {'KEY': 'val'});
       });
 
+      test('deserializes elevated and defaults it to false', () {
+        expect(
+          ProcessConfig.fromJson({
+            'name': 'elev',
+            'cmd': 'run',
+            'elevated': true,
+          }).elevated,
+          isTrue,
+        );
+        expect(
+          ProcessConfig.fromJson({'name': 'plain', 'cmd': 'run'}).elevated,
+          isFalse,
+        );
+      });
+
+      test('serializes elevated only when set', () {
+        final minimal = ProcessConfig(name: 'min', cmd: 'run').toJson();
+        expect(minimal.containsKey('elevated'), isFalse);
+        expect(
+          ProcessConfig(
+            name: 'elev',
+            cmd: 'run',
+            elevated: true,
+          ).toJson()['elevated'],
+          isTrue,
+        );
+      });
+
+      test('round-trips log_file', () {
+        final json = ProcessConfig(
+          name: 'logs',
+          cmd: 'run',
+          logFile: r'logs\app.log',
+        ).toJson();
+        expect(json['log_file'], r'logs\app.log');
+        expect(ProcessConfig.fromJson(json).logFile, r'logs\app.log');
+        expect(
+          ProcessConfig(
+            name: 'plain',
+            cmd: 'run',
+          ).toJson().containsKey('log_file'),
+          isFalse,
+        );
+      });
+
       test('deserializes with defaults for missing fields', () {
         final json = {'name': 'min', 'cmd': 'run'};
         final config = ProcessConfig.fromJson(json);

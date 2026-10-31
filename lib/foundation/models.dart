@@ -49,6 +49,22 @@ class ProcessConfig {
   final Map<String, String>? env;
   final bool cleanupCwd;
 
+  /// Launch this process elevated (Windows: UAC consent prompt).
+  ///
+  /// The elevated child is created through the UAC broker, so it gets its own
+  /// console instead of the parent's stdout/stderr pipes: its output is **not**
+  /// captured by trayforge, and its environment is not the one built here.
+  /// Exit code and termination still work — the broker's process handle is
+  /// kept for that. Pair with [logFile] to see output at all.
+  final bool elevated;
+
+  /// Log file to tail into the output pane, or `null` for none.
+  ///
+  /// Relative paths are resolved against [cwd]. Only lines appended after the
+  /// launch are shown, so a long-running process does not replay its backlog.
+  /// This is the only way to see output from an [elevated] process.
+  final String? logFile;
+
   const ProcessConfig({
     required this.name,
     this.cwd,
@@ -61,6 +77,8 @@ class ProcessConfig {
     this.maxRestarts,
     this.env,
     this.cleanupCwd = false,
+    this.elevated = false,
+    this.logFile,
   });
 
   Map<String, dynamic> toJson() => {
@@ -75,6 +93,8 @@ class ProcessConfig {
     if (maxRestarts != null) 'max_restarts': maxRestarts,
     if (env != null) 'env': env,
     'cleanup_cwd': cleanupCwd,
+    if (elevated) 'elevated': true,
+    if (logFile != null) 'log_file': logFile,
   };
 
   factory ProcessConfig.fromJson(Map<String, dynamic> json) {
@@ -92,6 +112,8 @@ class ProcessConfig {
         (k, v) => MapEntry(k, v as String),
       ),
       cleanupCwd: json['cleanup_cwd'] as bool? ?? false,
+      elevated: json['elevated'] as bool? ?? false,
+      logFile: json['log_file'] as String?,
     );
   }
 
@@ -118,6 +140,8 @@ class ProcessConfig {
     int? maxRestarts,
     Map<String, String>? env,
     bool? cleanupCwd,
+    bool? elevated,
+    String? logFile,
   }) {
     return ProcessConfig(
       name: name ?? this.name,
@@ -131,6 +155,8 @@ class ProcessConfig {
       maxRestarts: maxRestarts ?? this.maxRestarts,
       env: env ?? this.env,
       cleanupCwd: cleanupCwd ?? this.cleanupCwd,
+      elevated: elevated ?? this.elevated,
+      logFile: logFile ?? this.logFile,
     );
   }
 }

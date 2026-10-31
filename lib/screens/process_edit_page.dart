@@ -36,11 +36,13 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
   late final TextEditingController _webuiPatternController;
   late final TextEditingController _deleteBeforeStartController;
   late final TextEditingController _maxRestartsController;
+  late final TextEditingController _logFileController;
 
   String _encoding = 'utf-8';
   bool _singleton = false;
   bool _autostart = false;
   bool _cleanupCwd = false;
+  bool _elevated = false;
   List<_EnvRow> _envRows = [];
 
   String? _regexError;
@@ -56,6 +58,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
     _singleton = p?.singleton ?? false;
     _autostart = p?.autostart ?? false;
     _cleanupCwd = p?.cleanupCwd ?? false;
+    _elevated = p?.elevated ?? false;
     _webuiPatternController = TextEditingController(
       text: p?.webuiPattern ?? '',
     );
@@ -65,6 +68,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
     _maxRestartsController = TextEditingController(
       text: p?.maxRestarts?.toString() ?? '',
     );
+    _logFileController = TextEditingController(text: p?.logFile ?? '');
     _envRows =
         (p?.env?.entries.map((e) => _EnvRow(e.key, e.value)).toList() ?? []);
   }
@@ -77,6 +81,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
     _webuiPatternController.dispose();
     _deleteBeforeStartController.dispose();
     _maxRestartsController.dispose();
+    _logFileController.dispose();
     for (final row in _envRows) {
       row.dispose();
     }
@@ -94,6 +99,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
       singleton: _singleton,
       autostart: _autostart,
       cleanupCwd: _cleanupCwd,
+      elevated: _elevated,
       webuiPattern: _webuiPatternController.text.trim().isEmpty
           ? null
           : _webuiPatternController.text.trim(),
@@ -103,6 +109,9 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
           .where((l) => l.isNotEmpty)
           .toList(),
       maxRestarts: int.tryParse(_maxRestartsController.text.trim()),
+      logFile: _logFileController.text.trim().isEmpty
+          ? null
+          : _logFileController.text.trim(),
       env: _envRows.isEmpty
           ? null
           : {
@@ -391,6 +400,17 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: EdgeInsets.zero,
             ),
+            CheckboxListTile(
+              value: _elevated,
+              title: const Text('Elevated (UAC)'),
+              subtitle: const Text(
+                'Launch with administrator rights — Windows shows a UAC prompt. '
+                'Elevated output is not captured and env vars are not applied.',
+              ),
+              onChanged: (v) => setState(() => _elevated = v ?? false),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _webuiPatternController,
@@ -401,6 +421,18 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
                 errorText: _regexError,
               ),
               onChanged: _validateRegex,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _logFileController,
+              decoration: const InputDecoration(
+                labelText: 'Log File',
+                helperText:
+                    'Tail this file into the output pane (relative to cwd). '
+                    'Required to see output from elevated processes.',
+                hintText: r'e.g. logs\app.log',
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 16),
             TextFormField(

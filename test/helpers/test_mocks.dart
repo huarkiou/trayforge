@@ -72,9 +72,13 @@ class MockProcessHandle implements IProcessHandle {
 
 class MockProcessRunner implements IProcessRunner {
   final List<CapturedStart> starts = [];
+  final List<CapturedStart> elevatedStarts = [];
   MockProcessHandle? nextHandle;
   final List<MockProcessHandle> _handleQueue = [];
   Exception? throwOnStart;
+
+  /// Thrown by [startElevated] when set (e.g. a cancelled UAC prompt).
+  Exception? throwOnElevatedStart;
 
   /// When set, [start] waits for this completer before returning a handle.
   ///
@@ -121,6 +125,29 @@ class MockProcessRunner implements IProcessRunner {
       ),
     );
     if (throwOnStart != null) throw throwOnStart!;
+    if (startGate != null) {
+      await startGate!.future;
+    }
+    if (_handleQueue.isNotEmpty) return _handleQueue.removeAt(0);
+    return nextHandle!;
+  }
+
+  @override
+  Future<IProcessHandle> startElevated(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+  }) async {
+    elevatedStarts.add(
+      CapturedStart(
+        executable: executable,
+        arguments: arguments,
+        workingDirectory: workingDirectory,
+        environment: null,
+        runInShell: false,
+      ),
+    );
+    if (throwOnElevatedStart != null) throw throwOnElevatedStart!;
     if (startGate != null) {
       await startGate!.future;
     }

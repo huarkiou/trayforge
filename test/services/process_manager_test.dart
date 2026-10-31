@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trayforge/foundation/elevated_process_win32.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
@@ -24,6 +25,8 @@ AppConfig _testConfig({
   List<String>? deleteBeforeStart,
   Map<String, String>? env,
   bool cleanupCwd = false,
+  bool elevated = false,
+  String? logFile,
 }) {
   return AppConfig(
     outputRefreshMs: outputRefreshMs,
@@ -41,6 +44,8 @@ AppConfig _testConfig({
         deleteBeforeStart: deleteBeforeStart ?? const [],
         env: env,
         cleanupCwd: cleanupCwd,
+        elevated: elevated,
+        logFile: logFile,
       ),
     ],
   );
@@ -737,7 +742,7 @@ void main() {
         handle2.closeOutputs();
         handle2.completeExit(0);
         await Future<void>.delayed(const Duration(milliseconds: 10));
-        expect(pm.getState('test-svc'), ProcState.crashed);
+        expect(pm.getState('test-svc'), ProcState.stopped);
       });
 
       test(
@@ -1091,7 +1096,11 @@ void main() {
     // ---- OS singleton check ----
 
     group('OS singleton check', () {
-      test('skips start when process is already running at OS level', () async {
+      test('skips start when a singleton process is already running at '
+          'OS level', () async {
+        final config = _testConfig(singleton: true);
+        writeConfig(tmpDir, config);
+        await pm.reloadConfig(config);
         mockRunner.isRunning = true;
 
         final output = <String>[];
@@ -1113,6 +1122,23 @@ void main() {
         expect(pm.getState('test-svc'), ProcState.stopped);
       });
 
+      test('ignores the OS-level check for non-singleton processes', () async {
+        // Default config: singleton: false. A one-off script run through a
+        // shared interpreter (pwsh.exe, python.exe, …) must not be blocked
+        // by an unrelated instance of the same image.
+        mockRunner.isRunning = true;
+        mockRunner.nextHandle = MockProcessHandle();
+
+        final output = <String>[];
+        pm.outputStream('test-svc').listen(output.add);
+
+        await pm.start('test-svc');
+
+        expect(mockRunner.starts.length, 1);
+        expect(pm.getState('test-svc'), ProcState.running);
+        expect(output.any((l) => l.contains('already running')), isFalse);
+      });
+
       test('starts normally when process is not running at OS level', () async {
         mockRunner.isRunning = false;
         mockRunner.nextHandle = MockProcessHandle();
@@ -1121,6 +1147,165 @@ void main() {
 
         expect(mockRunner.starts.length, 1);
         expect(pm.getState('test-svc'), ProcState.running);
+      });
+    });
+
+    // ---- One-shot exit codes ----
+
+    group('clean exit', () {
+      test('exit with code 0 lands on stopped, not crashed', () async {
+        final handle = MockProcessHandle();
+        mockRunner.nextHandle = handle;
+
+        await pm.start('test-svc');
+
+        final output = <String>[];
+        pm.outputStream('test-svc').listen(output.add);
+        final states = <ProcState>[];
+        pm.stateStream('test-svc').listen(states.add);
+
+        handle.closeOutputs();
+        handle.completeExit(0);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        expect(states, isNot(contains(ProcState.crashed)));
+        expect(pm.getState('test-svc'), ProcState.stopped);
+        expect(
+          output.any((l) => l.contains('Process exited (code 0)')),
+          isTrue,
+        );
+      });
+    });
+
+    // ---- Elevated launch ----
+
+    group('elevated launch', () {
+      test('launches through startElevated and reports the PID', () async {
+        final config = _testConfig(elevated: true);
+        writeConfig(tmpDir, config);
+        await pm.reloadConfig(config);
+        mockRunner.nextHandle = MockProcessHandle(pid: 4242);
+
+        final output = <String>[];
+        pm.outputStream('test-svc').listen(output.add);
+
+        await pm.start('test-svc');
+
+        expect(mockRunner.elevatedStarts.length, 1);
+        expect(
+          mockRunner.starts,
+          isEmpty,
+          reason: 'elevated launches must not use the plain start path',
+        );
+        expect(pm.getState('test-svc'), ProcState.running);
+        expect(
+          output.any((l) => l.contains('Process started (PID: 4242)')),
+          isTrue,
+        );
+        expect(output.any((l) => l.contains('Elevated launch')), isTrue);
+      });
+
+      test('a cancelled UAC prompt leaves the process stopped', () async {
+        final config = _testConfig(elevated: true);
+        writeConfig(tmpDir, config);
+        await pm.reloadConfig(config);
+        mockRunner.throwOnElevatedStart = const ElevationException(
+          'UAC elevation was cancelled',
+        );
+
+        final output = <String>[];
+        pm.outputStream('test-svc').listen(output.add);
+
+        await pm.start('test-svc');
+
+        expect(pm.getState('test-svc'), ProcState.stopped);
+        expect(
+          output.any((l) => l.contains('UAC elevation was cancelled')),
+          isTrue,
+        );
+        expect(
+          File('${tmpDir.path}/pids/test-svc.pid').existsSync(),
+          isFalse,
+          reason: 'no PID file may be written for a launch that never ran',
+        );
+      });
+
+      test('stop terminates the elevated process through its handle', () async {
+        final config = _testConfig(elevated: true);
+        writeConfig(tmpDir, config);
+        await pm.reloadConfig(config);
+        final handle = MockProcessHandle(pid: 5001);
+        mockRunner.nextHandle = handle;
+
+        await pm.start('test-svc');
+        await pm.stop('test-svc');
+
+        expect(handle.killed, isTrue);
+        expect(
+          mockRunner.killedPids,
+          isEmpty,
+          reason: 'taskkill cannot reach an elevated pid; use the handle',
+        );
+        expect(pm.getState('test-svc'), ProcState.stopped);
+      });
+    });
+
+    // ---- Log file tailing ----
+
+    group('log file tailing', () {
+      test('resolves the log path against cwd and reports it', () async {
+        final config = _testConfig(cwd: tmpDir.path, logFile: 'app.log');
+        writeConfig(tmpDir, config);
+        await pm.reloadConfig(config);
+        mockRunner.nextHandle = MockProcessHandle();
+
+        final output = <String>[];
+        pm.outputStream('test-svc').listen(output.add);
+
+        await pm.start('test-svc');
+
+        expect(
+          output.any(
+            (l) => l.contains('Tailing log file') && l.contains('app.log'),
+          ),
+          isTrue,
+        );
+        expect(
+          output.any((l) => l.contains(tmpDir.path)),
+          isTrue,
+          reason: 'relative log_file must resolve against cwd',
+        );
+      });
+
+      test('streams appended lines into the output stream', () async {
+        final logFile = File('${tmpDir.path}/app.log');
+        final config = _testConfig(cwd: tmpDir.path, logFile: 'app.log');
+        writeConfig(tmpDir, config);
+        await pm.reloadConfig(config);
+        mockRunner.nextHandle = MockProcessHandle();
+
+        final output = <String>[];
+        pm.outputStream('test-svc').listen(output.add);
+
+        await pm.start('test-svc');
+        logFile.writeAsStringSync('hello from the log\n', flush: true);
+
+        // The tailer polls on its own timer (300 ms); give it a couple of
+        // ticks, then flush the buffered lines to the output stream.
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+        pm.flushNow('test-svc');
+
+        expect(output.any((l) => l.contains('hello from the log')), isTrue);
+      });
+
+      test('a process without log_file tails nothing', () async {
+        final output = <String>[];
+        pm.outputStream('test-svc').listen(output.add);
+        mockRunner.nextHandle = MockProcessHandle();
+
+        await pm.start('test-svc');
+
+        expect(output.any((l) => l.contains('Tailing log file')), isFalse);
       });
     });
 

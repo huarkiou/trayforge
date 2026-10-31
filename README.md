@@ -31,6 +31,12 @@ auto-restart on crash, and colour-coded tray icon at a glance.
   OS-level).
 - **Working directory cleanup** — `cleanup_cwd` kills residual processes from the
   same working directory before starting a new instance.
+- **Elevated launch (UAC)** — mark a process `elevated: true` and TrayForge
+  launches it through the Windows UAC broker; the exit code still reaches the
+  dashboard.
+- **Log-file tailing** — set `log_file` and lines the process appends to that
+  file show up in the output pane. This is how elevated processes surface
+  output at all.
 - **Delete-before-start** — delete lock/persistent files before launching.
 - **Single-instance app** — only one TrayForge runs at a time; starting a second
   instance brings the existing one to the foreground.
@@ -111,6 +117,40 @@ TrayForge stores its config in `config.json` under the app data directory
 | `delete_before_start`  | `string[]`        | Delete these files (relative to `cwd`) before launching. Path-escape safe.                         |
 | `env`                  | `object?`         | Extra environment variables（merged on top of system env）.                                       |
 | `encoding`             | `string?`         | Process output encoding. Defaults to UTF-8.                                                        |
+| `elevated`             | `bool`            | Launch elevated（Windows UAC prompt）. stdout/stderr is not captured and `env` is not applied.       |
+| `log_file`             | `string?`         | Tail this file into the output pane（relative to `cwd`）. Appended lines only.                      |
+
+### Elevated processes (Windows)
+
+`elevated: true` starts the process through the UAC broker
+(`ShellExecuteEx` with the `runas` verb), so Windows shows a consent prompt.
+Exit code and stop still work — TrayForge keeps the broker's process handle.
+
+Two limits are inherent to UAC:
+
+- **No stdout/stderr.** An elevated child gets its own console instead of
+  TrayForge's pipes. Set `log_file` and have the process append to that file —
+  TrayForge tails it into the output pane, which is the only way to see what an
+  elevated process did.
+- **No `env`.** `ShellExecuteEx` cannot pass an environment block; the child
+  sees the environment Windows gives an elevated process.
+
+Each launch (including a crash-restart) prompts again. A script that
+self-elevates (`Start-Process -Verb RunAs`) does not need this flag — but
+TrayForge then tracks the short-lived launcher, not the elevated child, and
+loses the exit code.
+
+### Log-file tailing
+
+`log_file` turns a file into a second output channel:
+
+- Relative paths resolve against `cwd`.
+- Only lines appended **after** the launch are shown — starting a long-running
+  daemon does not replay its backlog. A file that shrinks (truncated or
+  recreated by the process) is replayed from the beginning.
+- Lines go through the usual pipeline: ANSI stripping, history cap, and
+  `webui_pattern` detection all apply.
+- A trailing line without its newline is emitted when the process exits.
 
 ### App-level fields
 

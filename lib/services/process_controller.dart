@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:trayforge/foundation/logger.dart';
+import 'package:trayforge/foundation/log_file_tailer.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/foundation/output_pipeline.dart';
 import 'package:trayforge/foundation/shlex.dart';
@@ -68,6 +69,9 @@ class ProcessController {
   BufferedOutputPipeline? _pipeline;
   StreamSubscription<void>? _outputSubscription;
   StreamController<ProcState>? _stateController;
+
+  /// Tails [ProcessConfig.logFile] while the process is alive, if configured.
+  LogFileTailer? _logTailer;
 
   /// Config captured at the last [start]; reused by crash restarts.
   AppConfig _appConfig = const AppConfig();
@@ -154,19 +158,24 @@ class ProcessController {
       var executable = args.first;
       final arguments = args.length > 1 ? args.sublist(1) : <String>[];
 
-      // OS-level singleton check
-      final executableName = p.basename(executable);
-      try {
-        final alreadyRunning = await _processRunner.isProcessRunning(
-          executableName,
-        );
-        if (alreadyRunning) {
-          _pushSystemMessage('Process is already running at OS level');
-          _setState(ProcState.stopped);
-          return;
+      // OS-level singleton check. Only meaningful for a process declared
+      // singleton: a non-singleton process (typically a one-off script run
+      // through a shared interpreter such as pwsh.exe) must be allowed even
+      // while another instance of the same image is alive.
+      if (procConfig.singleton) {
+        final executableName = p.basename(executable);
+        try {
+          final alreadyRunning = await _processRunner.isProcessRunning(
+            executableName,
+          );
+          if (alreadyRunning) {
+            _pushSystemMessage('Process is already running at OS level');
+            _setState(ProcState.stopped);
+            return;
+          }
+        } catch (_) {
+          // Best-effort; proceed with launch if check fails.
         }
-      } catch (_) {
-        // Best-effort; proceed with launch if check fails.
       }
 
       if (_disposed) return;
@@ -214,13 +223,34 @@ class ProcessController {
 
       _log('Starting $name: $executable ${arguments.join(' ')}');
 
-      final handle = await _processRunner.start(
-        executable,
-        arguments,
-        workingDirectory: workingDirectory,
-        environment: env,
-        runInShell: false,
+      pipeline.configure(
+        historyLimit: _appConfig.outputHistoryLimit,
+        refreshMs: _appConfig.outputRefreshMs,
+        webuiPattern: procConfig.webuiPattern,
       );
+
+      // Start tailing the configured log file *before* the launch: the
+      // baseline must be the pre-launch end of file, otherwise output the
+      // process writes immediately would be missed.
+      _startTailer(procConfig);
+
+      final elevated = procConfig.elevated;
+      final IProcessHandle handle;
+      if (elevated) {
+        handle = await _processRunner.startElevated(
+          executable,
+          arguments,
+          workingDirectory: workingDirectory,
+        );
+      } else {
+        handle = await _processRunner.start(
+          executable,
+          arguments,
+          workingDirectory: workingDirectory,
+          environment: env,
+          runInShell: false,
+        );
+      }
 
       _handle = handle;
 
@@ -231,7 +261,7 @@ class ProcessController {
       // resurrect anything after applyRemoval.
       if (_pendingStop || _removed || _disposed) {
         _manualStop = true;
-        await _processRunner.killPid(handle.pid);
+        await _killHandle(handle);
         if (_removed || _disposed) {
           // Removal/dispose owns the teardown; the launched process is
           // already dead, so just bail.
@@ -253,28 +283,33 @@ class ProcessController {
       _setState(ProcState.running);
       _pushSystemMessage('Process started (PID: ${handle.pid})');
 
-      // Wire output pipeline
-      final encoding = _resolveEncoding(procConfig.encoding);
-      // 宽松解码:原生库(torch/CUDA 等)在 Windows 上会直接往 stderr 写
-      // ANSI/GBK 字节,严格解码会抛 FormatException 中断输出流;非法字节
-      // 一律替换为 U+FFFD,保证输出流不断。
-      final decoder = _lenientDecoder(encoding);
+      if (elevated && _logTailer == null) {
+        // A UAC-elevated child gets its own console instead of our pipes, so
+        // only the exit code and termination remain observable — unless a log
+        // file is being tailed.
+        _pushSystemMessage(
+          'Elevated launch: stdout/stderr is not captured (UAC boundary); '
+          'set "Log File" to stream output here',
+        );
+      }
 
-      pipeline.configure(
-        historyLimit: _appConfig.outputHistoryLimit,
-        refreshMs: _appConfig.outputRefreshMs,
-        webuiPattern: procConfig.webuiPattern,
-      );
+      if (!elevated) {
+        // 宽松解码:原生库(torch/CUDA 等)在 Windows 上会直接往 stderr 写
+        // ANSI/GBK 字节,严格解码会抛 FormatException 中断输出流;非法字节
+        // 一律替换为 U+FFFD,保证输出流不断。
+        final decoder = _lenientDecoder(_resolveEncoding(procConfig.encoding));
 
-      final merged = _mergeByteStreams(handle.stdout, handle.stderr);
-      final subscription = merged
-          .transform(decoder)
-          .transform(const LineSplitter())
-          .listen(
-            pipeline.addLine,
-            onError: (e) => pipeline.push('[trayforge] Output read error: $e'),
-          );
-      _outputSubscription = subscription;
+        final merged = _mergeByteStreams(handle.stdout, handle.stderr);
+        final subscription = merged
+            .transform(decoder)
+            .transform(const LineSplitter())
+            .listen(
+              pipeline.addLine,
+              onError: (e) =>
+                  pipeline.push('[trayforge] Output read error: $e'),
+            );
+        _outputSubscription = subscription;
+      }
 
       pipeline.startFlushTimer();
 
@@ -286,12 +321,18 @@ class ProcessController {
         if (_disposed || _handle != handle) return;
         final wasManual = _manualStop;
         _manualStop = false;
+        // Final log-file read before reporting the exit, so a one-shot
+        // process's last lines land in the buffer ahead of the exit message.
+        _stopTailer();
         if (!wasManual) {
           _onUnexpectedExit(exitCode);
         }
         _cleanup();
       });
     } on Exception catch (e) {
+      // The launch never produced a handle, so no exit handler will clean up:
+      // stop tailing here (a launch that failed has no output to show anyway).
+      _stopTailer();
       _pushSystemMessage('Start failed: $e');
       _setState(ProcState.stopped);
     }
@@ -353,7 +394,7 @@ class ProcessController {
     _cancelRestart();
     _pushSystemMessage('Process stopping...');
 
-    await _processRunner.killPid(handle.pid);
+    await _killHandle(handle);
 
     if (_disposed || _removed) return;
     // A newer launch replaced this stop's target while the kill was in
@@ -387,7 +428,7 @@ class ProcessController {
 
     final handle = _handle;
     if (handle != null) {
-      await _processRunner.killPid(handle.pid);
+      await _killHandle(handle);
     }
 
     _cleanup();
@@ -415,6 +456,7 @@ class ProcessController {
   void dispose() {
     _disposed = true;
     _restart?.cooldownTimer?.cancel();
+    _stopTailer();
     _pipeline?.dispose();
     _outputSubscription?.cancel();
     _stateController?.close();
@@ -457,6 +499,19 @@ class ProcessController {
   }
 
   void _onUnexpectedExit(int exitCode) {
+    // Deliver output already in the buffer (including tailed log lines) before
+    // the termination message, so the log reads chronologically.
+    _pipeline?.flushNow();
+
+    if (exitCode == 0) {
+      // A clean exit is not a crash: one-shot commands (a script that hands
+      // its work to another process and returns, for example) finish with 0
+      // by design. No restart budget is spent on it.
+      _pushSystemMessage('Process exited (code 0)');
+      _setState(ProcState.stopped);
+      return;
+    }
+
     _pushSystemMessage('Process exited with code $exitCode');
 
     final procConfig = _procConfig;
@@ -528,9 +583,75 @@ class ProcessController {
 
   BufferedOutputPipeline get pipeline => _pipeline ??= BufferedOutputPipeline();
 
+  /// Kills [handle], choosing the mechanism that can actually reach it.
+  ///
+  /// Elevated processes are terminated through the UAC broker's handle: a
+  /// non-elevated `taskkill` on an elevated pid fails with access denied, so
+  /// [IProcessHandle.kill] is tried first and the external kill is only a
+  /// fallback (it succeeds when trayforge itself runs elevated).
+  Future<void> _killHandle(IProcessHandle handle) async {
+    if (_procConfig?.elevated ?? false) {
+      if (handle.kill()) return;
+      final killed = await _processRunner.killPid(handle.pid);
+      if (!killed) {
+        _pushSystemMessage(
+          'Could not terminate elevated process (PID ${handle.pid}): '
+          'run TrayForge as administrator to stop it',
+        );
+      }
+      return;
+    }
+    await _processRunner.killPid(handle.pid);
+  }
+
+  /// Starts tailing [ProcessConfig.logFile] into the output pipeline.
+  ///
+  /// Resolves the path, snapshots the current end of file, and polls for
+  /// appended lines. Replaces (stops) any tailer from a previous launch.
+  void _startTailer(ProcessConfig procConfig) {
+    _stopTailer();
+    final path = _resolveLogPath(procConfig);
+    if (path == null) return;
+
+    final tailer = LogFileTailer(
+      path: path,
+      decoder: _lenientDecoder(_resolveEncoding(procConfig.encoding)),
+      onLine: pipeline.addLine,
+    );
+    tailer.start();
+    _logTailer = tailer;
+    _pushSystemMessage('Tailing log file: $path');
+  }
+
+  /// Stops the log tailer, flushing any lines it has not emitted yet.
+  void _stopTailer() {
+    _logTailer?.stop();
+    _logTailer = null;
+  }
+
+  /// Resolves [ProcessConfig.logFile] to an absolute path, or `null`.
+  ///
+  /// A relative path is resolved against the process's cwd (like
+  /// `delete_before_start`), falling back to the app's current directory.
+  String? _resolveLogPath(ProcessConfig procConfig) {
+    final raw = procConfig.logFile?.trim();
+    if (raw == null || raw.isEmpty) return null;
+    if (p.isAbsolute(raw)) return p.normalize(raw);
+
+    final cwd = procConfig.cwd;
+    if (cwd != null && cwd.isNotEmpty) {
+      return p.normalize(p.join(cwd, raw));
+    }
+    return p.normalize(p.absolute(raw));
+  }
+
   void _cleanup() {
     if (_disposed) return;
     if (_handle == null) return;
+
+    // Stop tailing first: its final poll pushes the last lines into the
+    // buffer, which the flush below then delivers.
+    _stopTailer();
 
     _pipeline?.stopFlushTimer();
     _outputSubscription?.cancel();
