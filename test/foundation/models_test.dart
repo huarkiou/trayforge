@@ -208,6 +208,83 @@ void main() {
     });
   });
 
+  group('ServiceConfig', () {
+    test('round-trips name, services and stop_dependents', () {
+      const config = ServiceConfig(
+        name: 'Licenses',
+        services: ['A', 'B'],
+        stopDependents: true,
+      );
+      final json = config.toJson();
+
+      expect(json['name'], 'Licenses');
+      expect(json['services'], ['A', 'B']);
+      expect(json['stop_dependents'], true);
+      expect(ServiceConfig.fromJson(json), config);
+    });
+
+    test('omits stop_dependents when false and defaults it on parse', () {
+      const config = ServiceConfig(name: 'g', services: ['A']);
+      expect(config.toJson().containsKey('stop_dependents'), isFalse);
+      expect(
+        ServiceConfig.fromJson({
+          'name': 'g',
+          'services': ['A'],
+        }).stopDependents,
+        isFalse,
+      );
+    });
+
+    test('tolerates a missing or malformed services list', () {
+      expect(ServiceConfig.fromJson({'name': 'g'}).services, isEmpty);
+      expect(
+        ServiceConfig.fromJson({'name': 'g', 'services': 'A'}).services,
+        isEmpty,
+      );
+    });
+
+    test('equality covers the member list', () {
+      expect(
+        const ServiceConfig(name: 'g', services: ['A', 'B']),
+        const ServiceConfig(name: 'g', services: ['A', 'B']),
+      );
+      expect(
+        const ServiceConfig(name: 'g', services: ['A']),
+        isNot(const ServiceConfig(name: 'g', services: ['A', 'B'])),
+      );
+    });
+  });
+
+  group('AppConfig services', () {
+    test('defaults to no services and a 5s poll', () {
+      const config = AppConfig();
+      expect(config.services, isEmpty);
+      expect(config.servicePollMs, 5000);
+    });
+
+    test('round-trips services and service_poll_ms', () {
+      const config = AppConfig(
+        servicePollMs: 2000,
+        services: [
+          ServiceConfig(name: 'g', services: ['A']),
+        ],
+      );
+      final json = config.toJson();
+      expect(json['service_poll_ms'], 2000);
+      expect((json['services'] as List<dynamic>), hasLength(1));
+
+      final parsed = AppConfig.fromJson(json);
+      expect(parsed.servicePollMs, 2000);
+      expect(parsed.services.single, config.services.single);
+    });
+
+    test('parses a config without the new keys', () {
+      final parsed = AppConfig.fromJson({'processes': <dynamic>[]});
+      expect(parsed.services, isEmpty);
+      expect(parsed.servicePollMs, 5000);
+    });
+  });
+
   group('AppConfig', () {
     test('creates with defaults', () {
       final config = AppConfig();

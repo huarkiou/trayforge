@@ -73,15 +73,7 @@ class ConfigStore {
   /// - [ProcessConfig.name] contains `/` or `\`
   /// - [ProcessConfig.webuiPattern] is non-null and not a valid regex
   void validate(ProcessConfig config) {
-    if (config.name.trim().isEmpty) {
-      throw ArgumentError('Process name must not be empty');
-    }
-
-    if (config.name.contains('/') || config.name.contains('\\')) {
-      throw ArgumentError(
-        'Process name "${config.name}" must not contain / or \\',
-      );
-    }
+    _validateName(config.name, what: 'Process');
 
     if (config.webuiPattern != null) {
       try {
@@ -89,6 +81,33 @@ class ConfigStore {
       } on FormatException catch (e) {
         throw ArgumentError('Invalid webui_pattern regex: ${e.message}');
       }
+    }
+  }
+
+  /// Validates a single [ServiceConfig].
+  ///
+  /// Throws [ArgumentError] if:
+  /// - [ServiceConfig.name] is empty or whitespace-only
+  /// - [ServiceConfig.name] contains `/` or `\`
+  /// - [ServiceConfig.services] is empty
+  void validateService(ServiceConfig config) {
+    _validateName(config.name, what: 'Service group');
+
+    if (config.services.isEmpty) {
+      throw ArgumentError(
+        'Service group "${config.name}" needs at least one service',
+      );
+    }
+  }
+
+  /// The name rules shared by every managed kind.
+  void _validateName(String name, {required String what}) {
+    if (name.trim().isEmpty) {
+      throw ArgumentError('$what name must not be empty');
+    }
+
+    if (name.contains('/') || name.contains('\\')) {
+      throw ArgumentError('$what name "$name" must not contain / or \\');
     }
   }
 

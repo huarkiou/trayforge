@@ -7,6 +7,7 @@ import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/services/autostart.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
+import 'package:trayforge/services/service_manager.dart';
 
 /// ViewModel for the Settings page.
 ///
@@ -16,20 +17,25 @@ import 'package:trayforge/services/process_manager.dart';
 class SettingsViewModel extends ChangeNotifier {
   final ConfigStore _configStore;
   final ProcessManager _processManager;
+  final ServiceManager? _serviceManager;
   final Autostart _autostart;
 
   List<ProcessConfig> _processes = [];
+  List<ServiceConfig> _services = [];
   int _outputRefreshMs = 500;
   int _outputHistoryLimit = 1000;
+  int _servicePollMs = 5000;
   DashboardLayout _dashboardLayout = DashboardLayout.list;
   StreamSubscription<void>? _configSub;
 
   SettingsViewModel({
     required ConfigStore configStore,
     required ProcessManager processManager,
+    ServiceManager? serviceManager,
     required Autostart autostart,
   }) : _configStore = configStore,
        _processManager = processManager,
+       _serviceManager = serviceManager,
        _autostart = autostart {
     _reload();
     _configSub = processManager.onConfigReloaded.listen((_) => _reload());
@@ -37,6 +43,9 @@ class SettingsViewModel extends ChangeNotifier {
 
   /// All process configs in list order.
   List<ProcessConfig> get processes => List.unmodifiable(_processes);
+
+  /// All service groups in list order.
+  List<ServiceConfig> get services => List.unmodifiable(_services);
 
   /// Whether a process with [name] is currently running.
   bool isRunning(String name) {
@@ -52,6 +61,16 @@ class SettingsViewModel extends ChangeNotifier {
 
   /// Dashboard layout mode.
   DashboardLayout get dashboardLayout => _dashboardLayout;
+
+  /// How often service groups re-query the OS, in milliseconds.
+  int get servicePollMs => _servicePollMs;
+
+  /// Updates [servicePollMs] and persists.
+  void setServicePollMs(int value) {
+    _servicePollMs = value;
+    _saveGlobals();
+    _serviceManager?.applyPollInterval(value);
+  }
 
   /// Updates [outputRefreshMs] and persists.
   void setOutputRefreshMs(int value) {
@@ -151,52 +170,96 @@ class SettingsViewModel extends ChangeNotifier {
     }
   }
 
+  // ---- Service groups ----
+
+  /// Adds a service group to the end of the list and persists.
+  void addService(ServiceConfig config) {
+    _configStore.validateService(config);
+    _services = [..._services, config];
+    _save();
+  }
+
+  /// Replaces the service group at [index] and persists.
+  void editService(int index, ServiceConfig config) {
+    _configStore.validateService(config);
+    _services = List<ServiceConfig>.from(_services);
+    _services[index] = config;
+    _save();
+  }
+
+  /// Removes the service group at [index] and persists.
+  ///
+  /// The services themselves keep running: TrayForge never owned them.
+  void deleteService(int index) {
+    _services = List<ServiceConfig>.from(_services);
+    _services.removeAt(index);
+    _save();
+  }
+
+  /// Validates a [ServiceConfig], returning `null` or an error message.
+  String? validateServiceConfig(ServiceConfig config) {
+    try {
+      _configStore.validateService(config);
+      return null;
+    } on ArgumentError catch (e) {
+      return e.message;
+    }
+  }
+
   /// Reloads from [ConfigStore] when [ProcessManager.onConfigReloaded] fires.
   void _reload() {
     final config = _configStore.load();
     _processes = config?.processes.toList() ?? [];
+    _services = config?.services.toList() ?? [];
     _outputRefreshMs = config?.outputRefreshMs ?? 500;
     _outputHistoryLimit = config?.outputHistoryLimit ?? 1000;
+    _servicePollMs = config?.servicePollMs ?? 5000;
     _dashboardLayout = config?.dashboardLayout ?? DashboardLayout.list;
     notifyListeners();
   }
 
-  /// Persists only global settings (refresh interval, history limit,
-  /// dashboard layout).
+  /// Persists only global settings (refresh interval, history limit, service
+  /// poll interval, dashboard layout).
   ///
   /// Writes to disk and notifies listeners. Does **not** call
   /// [ProcessManager.reloadConfig] — globals take effect on next process
   /// start and don't require a hot reload.
+  ///
+  /// Every global and both config lists must be carried here: writing only the
+  /// edited value would silently drop processes or services from disk.
   void _saveGlobals() {
     final config = _configStore.load() ?? AppConfig.defaultConfig();
     final newConfig = AppConfig(
       outputRefreshMs: _outputRefreshMs,
       outputHistoryLimit: _outputHistoryLimit,
+      servicePollMs: _servicePollMs,
       dashboardLayout: _dashboardLayout,
       processes: List<ProcessConfig>.from(config.processes),
+      services: List<ServiceConfig>.from(config.services),
     );
     _configStore.save(newConfig);
     notifyListeners();
   }
 
-  /// Persists the current process list and triggers a ProcessManager reload.
+  /// Persists the current process/service lists and triggers a hot reload.
   ///
   /// Follows Path A from the spec:
   ///   1. ConfigStore.save() — write disk only
-  ///   2. ProcessManager.reloadConfig() — stop/start + emit onConfigReloaded
-  ///      → DashboardViewModel._rebuild()
-  ///      → TrayViewModel._rebuildSubscriptions()
-  ///      → SettingsViewModel._reload() (via onConfigReloaded subscription)
+  ///   2. ProcessManager.reloadConfig() / ServiceManager.reloadConfig() —
+  ///      stop/start + emit onConfigReloaded
   void _save() {
     final config = _configStore.load() ?? AppConfig.defaultConfig();
     final newConfig = AppConfig(
       outputHistoryLimit: config.outputHistoryLimit,
       outputRefreshMs: config.outputRefreshMs,
+      servicePollMs: config.servicePollMs,
       dashboardLayout: config.dashboardLayout,
       processes: _processes,
+      services: _services,
     );
     _configStore.save(newConfig);
     _processManager.reloadConfig(newConfig);
+    _serviceManager?.reloadConfig(newConfig);
     notifyListeners();
   }
 

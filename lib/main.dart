@@ -12,8 +12,11 @@ import 'package:trayforge/screens/dashboard_screen.dart';
 import 'package:trayforge/services/autostart.dart';
 import 'package:trayforge/services/config_store.dart';
 import 'package:trayforge/services/process_manager.dart';
+import 'package:trayforge/services/service_elevation.dart';
+import 'package:trayforge/services/service_manager.dart';
 import 'package:trayforge/services/single_instance.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
+import 'package:trayforge/viewmodels/services_viewmodel.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 import 'package:trayforge/viewmodels/tray_viewmodel.dart';
 
@@ -25,8 +28,10 @@ late final Logger _logger;
 late final SingleInstance _singleInstance;
 late final ConfigStore _configStore;
 late final ProcessManager _processManager;
+late final ServiceManager _serviceManager;
 late final TrayViewModel _trayViewModel;
 late final DashboardViewModel _dashboardViewModel;
+late final ServicesViewModel _servicesViewModel;
 late final Autostart _autostart;
 late final SettingsViewModel _settingsViewModel;
 Timer? _wakeTimer;
@@ -47,7 +52,14 @@ bool _exiting = false;
 // Entry point
 // ---------------------------------------------------------------------------
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
+  // Elevated service-control helper: handled before Flutter is initialized so
+  // the elevated process does one SCM operation and exits (one UAC prompt for
+  // the whole group). See docs/adr/005-native-service-management.md.
+  if (isServiceOpInvocation(args)) {
+    exit(await runServiceOpHelper(args.sublist(1)));
+  }
+
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
 
@@ -78,6 +90,9 @@ Future<void> main() async {
   _processManager = ProcessManager(configStore: _configStore, logger: _logger);
   await _processManager.init();
 
+  _serviceManager = ServiceManager(configStore: _configStore, logger: _logger);
+  await _serviceManager.init();
+
   _autostart = Autostart(logger: _logger);
 
   // ---- ViewModels ----
@@ -88,9 +103,15 @@ Future<void> main() async {
     configCorrupted: configCorrupted,
   );
 
+  _servicesViewModel = ServicesViewModel(
+    configStore: _configStore,
+    serviceManager: _serviceManager,
+  );
+
   _settingsViewModel = SettingsViewModel(
     configStore: _configStore,
     processManager: _processManager,
+    serviceManager: _serviceManager,
     autostart: _autostart,
   );
 
@@ -191,8 +212,11 @@ Future<void> _exitApp() async {
   _trayViewModel.removeListener(_onTrayStateChanged);
   _trayViewModel.dispose();
   _dashboardViewModel.dispose();
+  _servicesViewModel.dispose();
   _settingsViewModel.dispose();
   _processManager.dispose();
+  // Services are owned by the OS: disposing only stops polling and monitoring.
+  _serviceManager.dispose();
   await DesktopTray.instance.destroy();
   await windowManager.destroy();
 
@@ -285,6 +309,7 @@ class _trayforgeApp extends StatelessWidget {
       home: DashboardScreen(
         viewModel: _dashboardViewModel,
         settingsViewModel: _settingsViewModel,
+        servicesViewModel: _servicesViewModel,
       ),
     );
   }

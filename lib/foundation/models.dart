@@ -161,18 +161,90 @@ class ProcessConfig {
   }
 }
 
+/// Configuration for a managed group of services (Windows SCM / systemd).
+///
+/// A group is the unit of management: the card shows the aggregate state and a
+/// toggle drives every member to the same state (see ADR 005).
+class ServiceConfig {
+  final String name;
+
+  /// Service names (Windows) or unit names (systemd), managed together.
+  final List<String> services;
+
+  /// Stop services that depend on a member before stopping the member.
+  final bool stopDependents;
+
+  const ServiceConfig({
+    required this.name,
+    required this.services,
+    this.stopDependents = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'services': services,
+    if (stopDependents) 'stop_dependents': true,
+  };
+
+  factory ServiceConfig.fromJson(Map<String, dynamic> json) {
+    final raw = json['services'];
+    return ServiceConfig(
+      name: json['name'] as String,
+      services: raw is List
+          ? raw.map((e) => e.toString()).toList()
+          : const <String>[],
+      stopDependents: json['stop_dependents'] as bool? ?? false,
+    );
+  }
+
+  ServiceConfig copyWith({
+    String? name,
+    List<String>? services,
+    bool? stopDependents,
+  }) {
+    return ServiceConfig(
+      name: name ?? this.name,
+      services: services ?? this.services,
+      stopDependents: stopDependents ?? this.stopDependents,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is ServiceConfig &&
+      other.name == name &&
+      other.stopDependents == stopDependents &&
+      other.services.length == services.length &&
+      Iterable<int>.generate(
+        services.length,
+      ).every((i) => other.services[i] == services[i]);
+
+  @override
+  int get hashCode =>
+      Object.hash(name, stopDependents, Object.hashAll(services));
+}
+
 /// Application-level configuration.
 class AppConfig {
   final int outputHistoryLimit;
   final int outputRefreshMs;
+
+  /// How often a service group re-queries the SCM for its state.
+  final int servicePollMs;
+
   final DashboardLayout dashboardLayout;
   final List<ProcessConfig> processes;
+
+  /// Service groups managed alongside the processes.
+  final List<ServiceConfig> services;
 
   const AppConfig({
     this.outputHistoryLimit = 1000,
     this.outputRefreshMs = 500,
+    this.servicePollMs = 5000,
     this.dashboardLayout = DashboardLayout.list,
     this.processes = const [],
+    this.services = const [],
   });
 
   /// Default configuration with example processes: NapCat + AstrBot.
@@ -206,15 +278,23 @@ class AppConfig {
   Map<String, dynamic> toJson() => {
     'output_history_limit': outputHistoryLimit,
     'output_refresh_ms': outputRefreshMs,
+    'service_poll_ms': servicePollMs,
     'dashboard_layout': dashboardLayout.name,
     'processes': processes.map((p) => p.toJson()).toList(),
+    'services': services.map((s) => s.toJson()).toList(),
   };
 
   factory AppConfig.fromJson(Map<String, dynamic> json) {
     return AppConfig(
       outputHistoryLimit: json['output_history_limit'] as int? ?? 1000,
       outputRefreshMs: json['output_refresh_ms'] as int? ?? 500,
+      servicePollMs: json['service_poll_ms'] as int? ?? 5000,
       dashboardLayout: _parseDashboardLayout(json['dashboard_layout']),
+      services:
+          (json['services'] as List<dynamic>?)
+              ?.map((e) => ServiceConfig.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       processes:
           (json['processes'] as List<dynamic>?)
               ?.map((e) => ProcessConfig.fromJson(e as Map<String, dynamic>))

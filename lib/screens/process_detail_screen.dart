@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
+import 'package:trayforge/widgets/follow_scroll.dart';
 import 'package:trayforge/widgets/status_dot.dart';
 import 'package:trayforge/widgets/toggle_button.dart';
 import 'package:trayforge/widgets/webui_copy_button.dart';
@@ -22,12 +23,7 @@ class ProcessDetailPage extends StatefulWidget {
 }
 
 class _ProcessDetailPageState extends State<ProcessDetailPage> {
-  /// Distance from the bottom of the log that separates Follow-latest
-  /// from Detached.
-  static const double _followThreshold = 100.0;
-
-  final ScrollController _scrollController = ScrollController();
-  bool _autoScroll = true;
+  final FollowLatestController _follow = FollowLatestController();
   bool _searchVisible = false;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -39,43 +35,24 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
   void initState() {
     super.initState();
     _vm.addListener(_onViewModelChanged);
-    _scrollController.addListener(_onScroll);
+    _follow.attach();
     _searchController.addListener(_onSearchChanged);
     // Opening the page always starts in Follow-latest, pinned to the newest
     // output — independent of any view-model notification.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _follow.jumpToBottom());
   }
 
   @override
   void dispose() {
     _vm.removeListener(_onViewModelChanged);
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
+    _follow.detach();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
   }
 
-  void _scrollToBottom() {
-    if (!_scrollController.hasClients) return;
-    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-  }
-
-  void _onViewModelChanged() {
-    if (!_autoScroll) return;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_autoScroll) _scrollToBottom();
-    });
-  }
-
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    final position = _scrollController.position;
-    final threshold = (position.maxScrollExtent - position.pixels).abs();
-    _autoScroll = threshold < _followThreshold;
-  }
+  void _onViewModelChanged() => _follow.onContentChanged();
 
   void _onSearchChanged() {
     setState(() {
@@ -140,7 +117,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
                       // Clearing starts a new log session: return to
                       // Follow-latest, since the previous scroll position
                       // referred to deleted content.
-                      _autoScroll = true;
+                      _follow.reset();
                       _vm.clearOutput();
                     },
                   ),
@@ -221,7 +198,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
         }
 
         return SingleChildScrollView(
-          controller: _scrollController,
+          controller: _follow.scrollController,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: SelectableText(
             filtered.join('\n'),

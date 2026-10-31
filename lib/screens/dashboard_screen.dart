@@ -3,9 +3,11 @@ import 'package:flutter_reorderable_grid_view/widgets/widgets.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/screens/process_detail_screen.dart';
 import 'package:trayforge/screens/process_edit_page.dart';
+import 'package:trayforge/screens/services_page.dart';
 import 'package:trayforge/screens/settings_page.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
+import 'package:trayforge/viewmodels/services_viewmodel.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
 import 'package:trayforge/widgets/process_card.dart';
 
@@ -20,11 +22,13 @@ import 'package:trayforge/widgets/process_card.dart';
 class DashboardScreen extends StatefulWidget {
   final DashboardViewModel viewModel;
   final SettingsViewModel? settingsViewModel;
+  final ServicesViewModel? servicesViewModel;
 
   const DashboardScreen({
     super.key,
     required this.viewModel,
     this.settingsViewModel,
+    this.servicesViewModel,
   });
 
   @override
@@ -100,6 +104,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   icon: const Icon(Icons.add),
                   tooltip: 'Add process',
                   onPressed: () => _openAddPage(context),
+                ),
+              if (widget.servicesViewModel != null)
+                IconButton(
+                  icon: const Icon(Icons.dns_outlined),
+                  tooltip: 'Services',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ServicesPage(
+                          viewModel: widget.servicesViewModel!,
+                          settingsViewModel: settingsViewModel,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               if (settingsViewModel != null)
                 IconButton(

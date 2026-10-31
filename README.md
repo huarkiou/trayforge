@@ -37,6 +37,10 @@ auto-restart on crash, and colour-coded tray icon at a glance.
 - **Log-file tailing** — set `log_file` and lines the process appends to that
   file show up in the output pane. This is how elevated processes surface
   output at all.
+- **Native service groups** — manage Windows services (or systemd units) directly:
+  live state from the OS, one UAC prompt per start/stop of the whole group,
+  structured errors, no shell script in between. See
+  [ADR 005](docs/adr/005-native-service-management.md).
 - **Delete-before-start** — delete lock/persistent files before launching.
 - **Single-instance app** — only one TrayForge runs at a time; starting a second
   instance brings the existing one to the foreground.
@@ -158,7 +162,48 @@ loses the exit code.
 |------------------------|---------|----------|-----------------------------------------------|
 | `output_history_limit` | `int`    | `1000`   | Max output lines buffered per process.           |
 | `output_refresh_ms`    | `int`    | `500`    | Interval (ms) for batching output line flushes.  |
+| `service_poll_ms`      | `int`    | `5000`   | How often service groups re-query the OS (1 s – 1 h). |
 | `dashboard_layout`     | `string` | `list`   | Dashboard arrangement: `list` (wide cards) or `grid` (compact square cards). |
+
+### Service groups
+
+`services` is an array of groups managed from the **Services** page (AppBar
+icon on the Dashboard). Each group is started or stopped as one unit, and the
+card shows the aggregate state plus every member's own state.
+
+```json
+"services": [
+  {
+    "name": "Licenses",
+    "services": [
+      "SIMULIA FLEXnet License Manager",
+      "ANSYSLicensingTomcat"
+    ],
+    "stop_dependents": false
+  }
+]
+```
+
+| Field             | Type       | Description                                                       |
+|-------------------|------------|-------------------------------------------------------------------|
+| `name`            | `string`   | Display name of the group. Must not contain `/` or `\`.            |
+| `services`        | `string[]` | Windows service names (or systemd units), managed together.        |
+| `stop_dependents` | `bool`     | Stop dependent services first when a stop is blocked by them.      |
+
+Behavior worth knowing:
+
+- **The OS owns the state.** TrayForge queries it every `service_poll_ms` and
+  logs external changes, so a service started from `services.msc` shows up.
+  Nothing is remembered, nothing is restarted, and quitting TrayForge never
+  stops a service.
+- **Queries never prompt; control does.** A start/stop needs administrator
+  rights and asks for them once for the whole group (a declined prompt is
+  reported as cancelled). If TrayForge itself runs elevated, no prompt appears.
+- **Aggregate rule**: any member up → the toggle stops all members; otherwise it
+  starts all members.
+- **No autostart.** Starting a group at login would prompt for UAC at login;
+  use the service's own start type for boot-time behavior.
+- **Linux**: `systemctl` is used, with `pkexec` as the escalation fallback.
 
 ## Usage
 

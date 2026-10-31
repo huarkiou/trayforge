@@ -19,6 +19,7 @@
 library;
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
@@ -129,29 +130,52 @@ typedef _TerminateProcessDart = int Function(int, int);
 typedef _CloseHandleC = Int32 Function(IntPtr);
 typedef _CloseHandleDart = int Function(int);
 
-int _shellExecuteExW(Pointer<ShellExecuteInfoW> info) =>
-    _shell32.lookupFunction<_ShellExecuteExWC, _ShellExecuteExWDart>(
-      'ShellExecuteExW',
-    )(info);
+// Bindings are resolved once. Resolving (and first-calling) a function pointer
+// clears the thread's last error, so a per-call `lookupFunction` would make
+// every `GetLastError()` read 0 — a declined UAC prompt would then be reported
+// as "the shell returned no error code" instead of "cancelled".
+final int Function(Pointer<ShellExecuteInfoW>) _shellExecuteExW = _shell32
+    .lookupFunction<_ShellExecuteExWC, _ShellExecuteExWDart>('ShellExecuteExW');
 
-int _getLastError() => _kernel32
-    .lookupFunction<_GetLastErrorC, _GetLastErrorDart>('GetLastError')();
+final int Function() _getLastErrorRaw = _kernel32
+    .lookupFunction<_GetLastErrorC, _GetLastErrorDart>('GetLastError');
 
-int _getProcessId(int handle) => _kernel32
-    .lookupFunction<_GetProcessIdC, _GetProcessIdDart>('GetProcessId')(handle);
+final int Function(int) _getProcessId = _kernel32
+    .lookupFunction<_GetProcessIdC, _GetProcessIdDart>('GetProcessId');
 
-int _getExitCodeProcess(int handle, Pointer<Uint32> code) =>
-    _kernel32.lookupFunction<_GetExitCodeProcessC, _GetExitCodeProcessDart>(
+final int Function(int, Pointer<Uint32>) _getExitCodeProcess = _kernel32
+    .lookupFunction<_GetExitCodeProcessC, _GetExitCodeProcessDart>(
       'GetExitCodeProcess',
-    )(handle, code);
+    );
 
-int _terminateProcess(int handle, int code) =>
-    _kernel32.lookupFunction<_TerminateProcessC, _TerminateProcessDart>(
+final int Function(int, int) _terminateProcess = _kernel32
+    .lookupFunction<_TerminateProcessC, _TerminateProcessDart>(
       'TerminateProcess',
-    )(handle, code);
+    );
 
-int _closeHandle(int handle) => _kernel32
-    .lookupFunction<_CloseHandleC, _CloseHandleDart>('CloseHandle')(handle);
+final int Function(int) _closeHandle = _kernel32
+    .lookupFunction<_CloseHandleC, _CloseHandleDart>('CloseHandle');
+
+bool _lastErrorWarmed = false;
+
+/// Warms the `GetLastError` binding before the first call that can fail.
+///
+/// Resolving a function pointer — and calling it for the first time — clears
+/// the calling thread's last error, so both steps happen twice here, before
+/// the binding is relied on. A future call site must warm *before* the call
+/// that can fail: the [_getLastError] getter warms implicitly, which would eat
+/// an error that is already pending.
+void _warmUpLastError() {
+  if (_lastErrorWarmed) return;
+  _lastErrorWarmed = true;
+  _getLastErrorRaw();
+  _getLastErrorRaw();
+}
+
+int _getLastError() {
+  _warmUpLastError();
+  return _getLastErrorRaw();
+}
 
 // ---------------------------------------------------------------------------
 // ElevatedProcess
@@ -247,6 +271,29 @@ ElevatedProcess launchElevated(
   List<String> arguments, {
   String? workingDirectory,
 }) {
+  // A path that names a file (not a bare name resolved through PATH) must
+  // exist: the broker reports a missing file as a generic error, which would
+  // otherwise read as "cancelled". A relative path is resolved against
+  // [workingDirectory] first, because the broker resolves it against
+  // TrayForge's own current directory, not the directory it is handed.
+  //
+  // This check runs before any `toNativeUtf16()` allocation so a throw cannot
+  // leak native memory.
+  if (executable.contains(r'\') || executable.contains('/')) {
+    final resolved = _resolveAgainst(executable, workingDirectory);
+    final type = FileSystemEntity.typeSync(resolved);
+    if (type == FileSystemEntityType.directory) {
+      throw ElevationException(
+        'UAC elevation failed: $resolved is a directory',
+      );
+    }
+    if (type == FileSystemEntityType.notFound) {
+      throw ElevationException(
+        'UAC elevation failed: executable not found ($resolved)',
+      );
+    }
+  }
+
   final verb = 'runas'.toNativeUtf16();
   final file = executable.toNativeUtf16();
   final parameters = arguments
@@ -256,6 +303,9 @@ ElevatedProcess launchElevated(
   final directory = (workingDirectory == null || workingDirectory.isEmpty)
       ? nullptr
       : workingDirectory.toNativeUtf16();
+
+  // Warm the error binding before the call that can fail.
+  _warmUpLastError();
 
   final info = calloc<ShellExecuteInfoW>();
   try {
@@ -297,6 +347,21 @@ ElevatedProcess launchElevated(
     calloc.free(parameters);
     calloc.free(info);
   }
+}
+
+/// Resolves a relative [executable] against [workingDirectory].
+///
+/// Only called for paths that already contain a separator, so bare names keep
+/// being resolved by ShellExecute through `PATH`. An absolute path and an
+/// empty [workingDirectory] are returned unchanged.
+String _resolveAgainst(String executable, String? workingDirectory) {
+  final directory = workingDirectory;
+  if (directory == null || directory.isEmpty) return executable;
+  if (File(executable).isAbsolute) return executable;
+  final separator = directory.endsWith(r'\') || directory.endsWith('/')
+      ? ''
+      : r'\';
+  return '$directory$separator$executable';
 }
 
 String _describeLaunchFailure(int error) {

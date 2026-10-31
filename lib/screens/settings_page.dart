@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
@@ -19,6 +21,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   late final TextEditingController _refreshCtrl;
   late final TextEditingController _historyCtrl;
+  late final TextEditingController _servicePollCtrl;
 
   @override
   void initState() {
@@ -28,6 +31,9 @@ class _SettingsPageState extends State<SettingsPage> {
     _historyCtrl = TextEditingController(
       text: _vm.outputHistoryLimit.toString(),
     );
+    _servicePollCtrl = TextEditingController(
+      text: _vm.servicePollMs.toString(),
+    );
   }
 
   @override
@@ -35,6 +41,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _vm.removeListener(_onChanged);
     _refreshCtrl.dispose();
     _historyCtrl.dispose();
+    _servicePollCtrl.dispose();
     super.dispose();
   }
 
@@ -50,6 +57,11 @@ class _SettingsPageState extends State<SettingsPage> {
     _historyCtrl.text = val.toString();
   }
 
+  void _applyServicePollMs(int val) {
+    _vm.setServicePollMs(val);
+    _servicePollCtrl.text = val.toString();
+  }
+
   Widget _buildStepperField({
     required String label,
     required String tooltip,
@@ -59,6 +71,7 @@ class _SettingsPageState extends State<SettingsPage> {
     required int max,
     required int step,
     required ValueChanged<int> onChanged,
+    String hint = 'Takes effect on next process start',
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -98,7 +111,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: IconButton(
                       icon: const Icon(Icons.keyboard_arrow_up, size: 20),
                       onPressed: value < max
-                          ? () => onChanged(value + step)
+                          ? () => onChanged(math.min(value + step, max))
                           : null,
                       padding: EdgeInsets.zero,
                       visualDensity: VisualDensity.compact,
@@ -110,7 +123,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: IconButton(
                       icon: const Icon(Icons.keyboard_arrow_down, size: 20),
                       onPressed: value > min
-                          ? () => onChanged(value - step)
+                          ? () => onChanged(math.max(value - step, min))
                           : null,
                       padding: EdgeInsets.zero,
                       visualDensity: VisualDensity.compact,
@@ -123,7 +136,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Takes effect on next process start',
+          hint,
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: Colors.grey),
@@ -159,6 +172,20 @@ class _SettingsPageState extends State<SettingsPage> {
             max: 100000,
             step: 500,
             onChanged: _applyHistoryLimit,
+          ),
+          const SizedBox(height: 16),
+          _buildStepperField(
+            label: 'Service poll (ms)',
+            tooltip:
+                'How often service groups re-query their state. '
+                'Status queries never prompt for elevation.',
+            controller: _servicePollCtrl,
+            value: _vm.servicePollMs,
+            min: 1000,
+            max: 3600000,
+            step: 1000,
+            onChanged: _applyServicePollMs,
+            hint: 'Applies immediately',
           ),
           const SizedBox(height: 8),
           SwitchListTile(
