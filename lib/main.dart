@@ -8,6 +8,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'package:trayforge/foundation/logger.dart';
 import 'package:trayforge/foundation/models.dart';
+import 'package:trayforge/foundation/process_elevation_win32.dart';
 import 'package:trayforge/screens/dashboard_screen.dart';
 import 'package:trayforge/services/autostart.dart';
 import 'package:trayforge/services/config_store.dart';
@@ -62,7 +63,12 @@ Future<void> main(List<String> args) async {
   await windowManager.ensureInitialized();
 
   // Configure window properties without showing it -- tray-only startup.
-  await windowManager.setTitle('trayforge');
+  // The title carries "(Administrator)" when this process itself is elevated,
+  // so the deployment's privilege level is visible at a glance.
+  final windowTitle = DashboardViewModel.windowTitle(
+    elevated: isCurrentProcessElevated(),
+  );
+  await windowManager.setTitle(windowTitle);
   await windowManager.setSize(const Size(800, 600));
   await windowManager.center();
 
@@ -127,7 +133,7 @@ Future<void> main(List<String> args) async {
   // ---- Window setup ----
 
   await windowManager.setPreventClose(true);
-  await windowManager.setTitle(DashboardViewModel.appTitle);
+  await windowManager.setTitle(windowTitle);
 
   // Set window icon (reused from Python trayforge).
   try {

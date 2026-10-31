@@ -214,6 +214,14 @@ void main() {
       expect(DashboardViewModel.appTitle, 'trayforge');
     });
 
+    test('windowTitle marks an elevated TrayForge', () {
+      expect(DashboardViewModel.windowTitle(elevated: false), 'trayforge');
+      expect(
+        DashboardViewModel.windowTitle(elevated: true),
+        'trayforge (Administrator)',
+      );
+    });
+
     // ---- Incremental _rebuild ----
 
     test('reuses existing ViewModels by name across rebuilds', () async {

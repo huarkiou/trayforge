@@ -163,10 +163,11 @@ again.
 from a scheduled task with highest privileges): the child is created with the
 inherited administrator token (plain `CreateProcess`). No prompt appears, its
 stdout/stderr reaches the output pane, `env` is applied, and stopping it is a
-tree kill like any other process. The trade-off is global: every process
-TrayForge starts — including those without `elevated` — runs as administrator.
-In this mode `log_file` is still useful (file-based logging, daemons) but no
-longer the only output channel.
+tree kill like any other process. The window title gains an `(Administrator)`
+suffix so the mode is visible at a glance. The trade-off is global: every
+process TrayForge starts — including those without `elevated` — runs as
+administrator. In this mode `log_file` is still useful (file-based logging,
+daemons) but no longer the only output channel.
 
 A script that self-elevates (`Start-Process -Verb RunAs`) does not need this
 flag — but TrayForge then tracks the short-lived launcher, not the elevated
