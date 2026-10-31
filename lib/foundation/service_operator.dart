@@ -85,7 +85,7 @@ class ServiceOperator {
     final statuses = await _host.query(op.services);
     return [
       for (final status in statuses)
-        op.kind.reaches(status)
+        op.kind.isHeadingTo(status)
             ? ServiceOpResult.ok(status.name)
             : ServiceOpResult.failed(
                 status.name,
@@ -100,9 +100,22 @@ class ServiceOperator {
 /// What an operation is aiming for, in one place so the operator, the helper
 /// and the controller cannot disagree.
 extension ServiceOpKindX on ServiceOpKind {
-  /// Whether [status] is the state this operation wants.
+  /// Whether [status] already reached the state this operation wants.
   bool reaches(ServiceStatus status) =>
       this == ServiceOpKind.start ? status.state.isUp : status.state.isStopped;
+
+  /// Whether [status] is the target **or already moving toward it**.
+  ///
+  /// Used for the check immediately after an operation: the OS answers
+  /// `STOP_PENDING`/`START_PENDING` for a service that is on its way, and
+  /// calling that a failure would report a problem for work that is about to
+  /// finish (the controller settles afterwards anyway).
+  bool isHeadingTo(ServiceStatus status) {
+    if (reaches(status)) return true;
+    return this == ServiceOpKind.start
+        ? status.state == ServiceState.startPending
+        : status.state == ServiceState.stopPending;
+  }
 }
 
 /// Applies [op] without elevating. Reused by the elevated helper process, so

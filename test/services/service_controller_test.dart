@@ -146,6 +146,46 @@ void main() {
       expect(controller.statuses, hasLength(2));
     });
 
+    test('a result that looked failed is not a problem once settled', () async {
+      // The helper returns while the SCM still says STOP_PENDING; the settle
+      // phase then sees the target state. No problem may be reported.
+      final fake = FakeServiceHost(states: {'a': ServiceState.running})
+        ..failuresByService['a'] = ServiceFailure.unknown
+        ..moveStateEvenWhenFailing = true;
+      build(
+        fake: fake,
+        config: groupConfig(services: ['a']),
+      );
+      await controller.init();
+
+      await controller.toggle();
+
+      expect(controller.currentState, ProcState.stopped);
+      expect(logs.any((l) => l.contains('problem(s)')), isFalse);
+      expect(logs.any((l) => l.contains('failed —')), isFalse);
+    });
+
+    test(
+      'a failed member that never settles is one problem, not two',
+      () async {
+        final fake = FakeServiceHost(states: {'a': ServiceState.running})
+          ..failuresByService['a'] = ServiceFailure.unknown;
+        build(
+          fake: fake,
+          config: groupConfig(services: ['a']),
+        );
+        await controller.init();
+
+        await controller.toggle();
+
+        expect(controller.currentState, ProcState.crashed);
+        expect(
+          logs.where((l) => l.contains('problem(s)')).single,
+          contains('grp: 1 problem(s)'),
+        );
+      },
+    );
+
     test('a member that never settles is reported as a timeout', () async {
       final fake = FakeServiceHost(
         states: {'a': ServiceState.stopped},

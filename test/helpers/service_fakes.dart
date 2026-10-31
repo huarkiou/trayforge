@@ -26,6 +26,12 @@ class FakeServiceHost implements ServiceHost {
   /// Per-service failures, overriding a blanket [opFailure].
   Map<String, ServiceFailure> failuresByService = {};
 
+  /// When true, a failing start/stop still moves the state to the target.
+  ///
+  /// Models "the call looked failed but the service did get there" — the
+  /// controller must judge by the settled state, not by the result alone.
+  bool moveStateEvenWhenFailing = false;
+
   /// When true, [query] throws (unsupported host / SCM unavailable).
   bool failQueries = false;
 
@@ -69,6 +75,8 @@ class FakeServiceHost implements ServiceHost {
     for (final name in names) {
       final failure = failuresByService[name] ?? opFailure;
       if (failure != null) {
+        // "The call looked failed, but the service reached the target anyway."
+        if (moveStateEvenWhenFailing && settleOnOp) states[name] = target;
         results.add(ServiceOpResult.failed(name, failure, 'fake failure'));
         continue;
       }

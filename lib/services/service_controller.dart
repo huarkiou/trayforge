@@ -175,7 +175,7 @@ class ServiceController {
   void updateConfig(ServiceConfig config) {
     if (config == _config) return;
     _config = config;
-    _log('$_groupLabel: configuration updated');
+    _log('$_groupLabel configuration updated');
     unawaited(refreshNow());
   }
 
@@ -256,14 +256,6 @@ class ServiceController {
       _log('operation failed: $e');
     }
 
-    final failures = results.where((result) => !result.ok).toList();
-    for (final failure in failures) {
-      _log(
-        '${failure.service}: failed — '
-        '${failure.message ?? failure.failure!.name}',
-      );
-    }
-
     final unsettled = await _awaitSettled(kind, pending);
     if (_disposed) return;
 
@@ -273,14 +265,25 @@ class ServiceController {
     if (kind == ServiceOpKind.stop) await _reportDependentsOfStillUp();
     if (_disposed) return;
 
-    if (failures.isNotEmpty || unsettled.isNotEmpty) {
+    // The final state decides, not the operator's instantaneous verdict: a
+    // service that answered STOP_PENDING right after the helper returned is
+    // not a failure if the settle phase saw it reach the target. A member that
+    // is both failed and unsettled is one problem, not two.
+    final problems = <String>{...unsettled};
+    for (final result in results.where((result) => !result.ok)) {
+      final status = _statusOf(_statuses, result.service);
+      if (status != null && kind.reaches(status)) continue;
+      problems.add(result.service);
+      _log(
+        '${result.service}: failed — ${result.message ?? result.failure!.name}',
+      );
+    }
+
+    if (problems.isNotEmpty) {
       _opFailed = true;
       _statusesAtFailure = List<ServiceStatus>.unmodifiable(_statuses);
       _setState(ProcState.crashed);
-      _log(
-        '$_groupLabel: ${failures.length + unsettled.length} problem(s) — '
-        'see above',
-      );
+      _log('$_groupLabel ${problems.length} problem(s) — see above');
       return;
     }
 
@@ -379,14 +382,14 @@ class ServiceController {
       statuses = await _host.query(_config.services);
     } on ServiceOpException catch (e) {
       _refreshing = false;
-      _log('$_groupLabel: $e');
+      _log('$_groupLabel $e');
       _opFailed = true;
       _statusesAtFailure = null; // Any successful query clears this.
       _setState(ProcState.crashed);
       return null;
     } catch (e) {
       _refreshing = false;
-      _log('$_groupLabel: query failed — $e');
+      _log('$_groupLabel query failed — $e');
       _opFailed = true;
       _statusesAtFailure = null;
       _setState(ProcState.crashed);
@@ -428,7 +431,7 @@ class ServiceController {
         _opFailed = false;
       } else if (!_sameStates(atFailure, statuses)) {
         _opFailed = false;
-        _log('$_groupLabel: ${aggregate.label} (changed outside TrayForge)');
+        _log('$_groupLabel ${aggregate.label} (changed outside TrayForge)');
       }
     }
 

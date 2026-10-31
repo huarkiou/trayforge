@@ -92,6 +92,32 @@ void main() {
     );
 
     test(
+      'treats a service still transitioning after elevation as ok',
+      () async {
+        final host = FakeServiceHost(states: {'a': ServiceState.running})
+          ..opFailure = ServiceFailure.accessDenied;
+        final elevated = FakeElevatedServiceRunner(
+          onRun: (groupOp) {
+            host.opFailure = null;
+            // The SCM answers STOP_PENDING while the service is on its way.
+            host.states['a'] = ServiceState.stopPending;
+          },
+        );
+        final operator = ServiceOperator(host: host, elevated: elevated);
+
+        final results = await operator.run(
+          const ServiceGroupOp(kind: ServiceOpKind.stop, services: ['a']),
+        );
+
+        expect(
+          results.single.ok,
+          isTrue,
+          reason: 'a pending transition is not a failure',
+        );
+      },
+    );
+
+    test(
       'reports services that did not reach the target after elevation',
       () async {
         final host = FakeServiceHost(states: {'a': ServiceState.stopped})
