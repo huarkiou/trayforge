@@ -62,6 +62,26 @@ class _SettingsPageState extends State<SettingsPage> {
     _servicePollCtrl.text = val.toString();
   }
 
+  /// Re-reads config.json and reports the outcome.
+  ///
+  /// Uses State.context (not the shadowing build parameter) so the mounted
+  /// guard is the one the analyzer understands.
+  Future<void> _reloadFromDisk() async {
+    final reloaded = await _vm.reloadFromDisk();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          reloaded
+              ? 'Configuration reloaded'
+              : 'config.json could not be read (a corrupted file is backed up '
+                    'next to it)',
+        ),
+        backgroundColor: reloaded ? null : Colors.red,
+      ),
+    );
+  }
+
   Widget _buildStepperField({
     required String label,
     required String tooltip,
@@ -193,6 +213,18 @@ class _SettingsPageState extends State<SettingsPage> {
             value: _vm.autostartEnabled,
             onChanged: (_) => _vm.toggleAutostart(),
             contentPadding: EdgeInsets.zero,
+          ),
+          const Divider(),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.refresh),
+            title: const Text('Reload config from disk'),
+            subtitle: const Text(
+              'Re-reads config.json and applies process and service changes '
+              'without restarting. Processes removed from the file are '
+              'stopped.',
+            ),
+            onTap: _reloadFromDisk,
           ),
         ],
       ),

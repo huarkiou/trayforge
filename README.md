@@ -41,7 +41,9 @@ auto-restart on crash, and colour-coded tray icon at a glance.
   live state from the OS, one UAC prompt per start/stop of the whole group,
   structured errors, no shell script in between. See
   [ADR 005](docs/adr/005-native-service-management.md).
-- **Delete-before-start** — delete lock/persistent files before launching.
+- **Config hot-reload** — the tray's **Reload Settings** item (or the Settings
+  page button) re-reads `config.json` and applies process **and** service
+  changes without restarting the app.- **Delete-before-start** — delete lock/persistent files before launching.
 - **Single-instance app** — only one TrayForge runs at a time; starting a second
   instance brings the existing one to the foreground.
 - **Corrupted config recovery** — detects corrupted `config.json`, backs it up, and

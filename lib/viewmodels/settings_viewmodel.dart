@@ -158,6 +158,25 @@ class SettingsViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Re-reads `config.json` from disk and applies it without restarting.
+  ///
+  /// The in-memory lists are refreshed first, so a later edit cannot write a
+  /// stale config back. Both coordinators then hot-swap: processes removed from
+  /// the file are stopped (the usual reload semantics), new/serviced groups are
+  /// materialized and the pages rebuild through `onConfigReloaded`.
+  ///
+  /// Returns `false` when the file is missing or unparsable — a corrupted file
+  /// is backed up and reported by [ConfigStore].
+  Future<bool> reloadFromDisk() async {
+    final config = _configStore.load();
+    if (config == null) return false;
+
+    _reload();
+    await _processManager.reloadConfig(config);
+    await _serviceManager?.reloadConfig(config);
+    return true;
+  }
+
   /// Validates a [ProcessConfig] using [ConfigStore.validate].
   ///
   /// Returns `null` on success, or an error message string on failure.

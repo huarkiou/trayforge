@@ -66,6 +66,24 @@ void main() {
       expect(mockRunner.starts.length, 1);
     });
 
+    test('reload action goes through the shared reload path', () async {
+      var reloads = 0;
+      final vm = TrayViewModel(
+        configStore: configStore,
+        processManager: manager,
+        onShowDashboard: () {},
+        onExit: () async {},
+        onReloadConfig: () async {
+          reloads++;
+        },
+      );
+
+      vm.handleMenuAction('reload');
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(reloads, 1);
+    });
+
     test('menu click on running process stops it via toggle', () async {
       final handle = MockProcessHandle(pid: 1001);
       mockRunner.nextHandle = handle;

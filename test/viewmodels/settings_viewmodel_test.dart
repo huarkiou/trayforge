@@ -110,6 +110,49 @@ void main() {
       expect(host.states['A'], ServiceState.stopped);
     });
 
+    test('reloadFromDisk applies a config edited on disk', () async {
+      // Someone edits config.json behind the running app's back.
+      final onDisk = configStore.load()!;
+      writeConfig(
+        tmpDir,
+        AppConfig(
+          servicePollMs: onDisk.servicePollMs,
+          dashboardLayout: onDisk.dashboardLayout,
+          processes: [
+            ...onDisk.processes,
+            const ProcessConfig(name: 'added', cmd: 'added.exe'),
+          ],
+          services: [
+            ...onDisk.services,
+            const ServiceConfig(name: 'NewGroup', services: ['A']),
+          ],
+        ),
+      );
+
+      final reloaded = await viewModel.reloadFromDisk();
+
+      expect(reloaded, isTrue);
+      expect(viewModel.processes.map((p) => p.name), contains('added'));
+      expect(viewModel.services.map((s) => s.name), contains('NewGroup'));
+      expect(
+        serviceManager.statuses('NewGroup'),
+        isNotEmpty,
+        reason: 'the manager materialized the group from the disk config',
+      );
+    });
+
+    test(
+      'reloadFromDisk leaves everything alone for an unreadable file',
+      () async {
+        File('${tmpDir.path}/config.json').writeAsStringSync('{ not json');
+
+        final reloaded = await viewModel.reloadFromDisk();
+
+        expect(reloaded, isFalse);
+        expect(viewModel.services.single.name, 'Licenses');
+      },
+    );
+
     test('invalid service configs are rejected', () {
       expect(
         viewModel.validateServiceConfig(

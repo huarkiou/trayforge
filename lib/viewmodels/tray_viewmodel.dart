@@ -25,6 +25,13 @@ class TrayViewModel extends ChangeNotifier {
   /// Called when the user requests app exit.
   final Future<void> Function() onExit;
 
+  /// Called when the user asks to reload the config from disk.
+  ///
+  /// Shared with the Settings page action, so a manual `config.json` edit
+  /// hot-swaps **processes and service groups** and refreshes the in-memory
+  /// lists. When absent, the tray falls back to reloading processes alone.
+  final Future<void> Function()? onReloadConfig;
+
   TrayColor _color = TrayColor.red;
   final Map<String, ProcState> _states = {};
   final List<StreamSubscription<void>> _subscriptions = [];
@@ -34,6 +41,7 @@ class TrayViewModel extends ChangeNotifier {
     required this._processManager,
     required this.onShowDashboard,
     required this.onExit,
+    this.onReloadConfig,
   }) {
     _rebuildSubscriptions();
     _subscriptions.add(
@@ -102,7 +110,7 @@ class TrayViewModel extends ChangeNotifier {
     }
     switch (key) {
       case 'reload':
-        _reloadConfig();
+        unawaited(_reloadConfig());
       case 'dashboard':
         onShowDashboard();
       case 'exit':
@@ -189,11 +197,20 @@ class TrayViewModel extends ChangeNotifier {
     _processManager.toggle(name);
   }
 
-  /// Reloads settings from disk and applies them (Path C from spec).
-  void _reloadConfig() {
+  /// Reloads the config from disk and applies it (Path C from spec).
+  ///
+  /// Delegates to the shared reload path when wired (processes **and** service
+  /// groups); the process-only fallback keeps the tray usable in isolation.
+  Future<void> _reloadConfig() async {
+    final reload = onReloadConfig;
+    if (reload != null) {
+      await reload();
+      return;
+    }
+
     final config = _configStore.load();
     if (config != null) {
-      _processManager.reloadConfig(config);
+      await _processManager.reloadConfig(config);
     }
   }
 }

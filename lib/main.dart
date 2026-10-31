@@ -120,6 +120,10 @@ Future<void> main(List<String> args) async {
     processManager: _processManager,
     onShowDashboard: _showDashboard,
     onExit: _exitApp,
+    // Same path as the Settings page: reloads processes *and* service groups.
+    onReloadConfig: () async {
+      await _settingsViewModel.reloadFromDisk();
+    },
   );
 
   // Tray state changes -> update icon and menu.
