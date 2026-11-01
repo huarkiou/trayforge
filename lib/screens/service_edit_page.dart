@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/l10n/validation_text.dart';
@@ -176,9 +177,9 @@ class _ServiceEditPageState extends State<ServiceEditPage> {
             const SizedBox(height: 24),
             Text(
               l10n.serviceElevationNote,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: context.secondaryTextColor,
+              ),
             ),
           ],
         ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/foundation/service_status.dart';
 import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/l10n/state_labels.dart';
@@ -11,7 +12,7 @@ Color serviceStateColor(ServiceState state) {
       state == ServiceState.unknown) {
     return Colors.red;
   }
-  return Colors.grey;
+  return neutralStatusColor;
 }
 
 /// One "service name — state" row, shared by the group card and the detail

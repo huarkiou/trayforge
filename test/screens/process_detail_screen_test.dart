@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/screens/process_detail_screen.dart';
 import 'package:trayforge/services/process_manager.dart';
@@ -203,7 +204,7 @@ void main() {
       expect(find.text('No output yet'), findsOneWidget);
     });
 
-    testWidgets('renders output lines in monospace', (tester) async {
+    testWidgets('renders output lines in the monospace stack', (tester) async {
       fakeManager.emitOutput('test-svc', 'hello world');
       await tester.pumpWidget(buildPage());
       await tester.pump();
@@ -211,7 +212,8 @@ void main() {
       final selectable = tester.widget<SelectableText>(
         find.byType(SelectableText),
       );
-      expect(selectable.style?.fontFamily, 'monospace');
+      expect(selectable.style?.fontFamily, monoFontFamily);
+      expect(selectable.style?.fontFamilyFallback, monoFontFallback);
       expect(selectable.data, contains('hello world'));
     });
 

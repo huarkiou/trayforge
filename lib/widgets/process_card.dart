@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
 import 'package:trayforge/widgets/edit_icon_button.dart';
@@ -165,10 +166,11 @@ class ProcessGridCard extends StatelessWidget {
                   if (viewModel.webuiUrl != null)
                     Text(
                       viewModel.webuiUrl.toString(),
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 11,
-                        color: Colors.grey,
+                      style: TextStyle(
+                        fontFamily: monoFontFamily,
+                        fontFamilyFallback: monoFontFallback,
+                        fontSize: 12,
+                        color: context.secondaryTextColor,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -224,10 +226,11 @@ class _OutputPreview extends StatelessWidget {
       if (!showEmptyHint) return const SizedBox.shrink();
       return Text(
         AppLocalizations.of(context).noOutputYet,
-        style: const TextStyle(
-          fontFamily: 'monospace',
+        style: TextStyle(
+          fontFamily: monoFontFamily,
+          fontFamilyFallback: monoFontFallback,
           fontSize: 12,
-          color: Colors.grey,
+          color: context.secondaryTextColor,
         ),
       );
     }
@@ -247,8 +250,9 @@ class _OutputPreview extends StatelessWidget {
           Text(
             line,
             style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 11,
+              fontFamily: monoFontFamily,
+              fontFamilyFallback: monoFontFallback,
+              fontSize: 12,
               height: 1.3,
             ),
             maxLines: 1,

@@ -1,6 +1,7 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/l10n/validation_text.dart';
@@ -165,7 +166,11 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             maxLines: null,
             expands: true,
             textAlignVertical: TextAlignVertical.top,
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+            style: const TextStyle(
+              fontFamily: monoFontFamily,
+              fontFamilyFallback: monoFontFallback,
+              fontSize: 13,
+            ),
             decoration: InputDecoration(
               hintText: l10n.editCommandHint,
               border: const OutlineInputBorder(),
@@ -457,9 +462,9 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             const SizedBox(height: 4),
             Text(
               l10n.deleteBeforeStartHelper,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: context.secondaryTextColor,
+              ),
             ),
             const SizedBox(height: 8),
             TextFormField(

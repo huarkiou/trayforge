@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/l10n/state_labels.dart';
 
 /// Colour used for [ProcState] in [StatusDot] and status labels.
 ///
-/// Green = running, red = crashed, grey = stopped/starting/stopping/cooldown.
+/// Green = running, red = crashed, neutral = stopped/starting/stopping/cooldown
+/// (see [neutralStatusColor]).
 Color statusColor(ProcState state) {
   switch (state) {
     case ProcState.running:
@@ -16,7 +18,7 @@ Color statusColor(ProcState state) {
     case ProcState.starting:
     case ProcState.stopping:
     case ProcState.cooldown:
-      return Colors.grey;
+      return neutralStatusColor;
   }
 }
 
@@ -60,7 +62,7 @@ class StateLabel extends StatelessWidget {
         Text(
           state.localizedLabel(AppLocalizations.of(context)),
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w500,
             color: statusColor(state),
           ),

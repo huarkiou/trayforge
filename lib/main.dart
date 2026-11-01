@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:desktop_tray/desktop_tray.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/foundation/logger.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/foundation/process_elevation_win32.dart';
@@ -369,9 +370,7 @@ class _trayforgeApp extends StatelessWidget {
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey),
-        ),
+        theme: buildAppTheme(),
         home: DashboardScreen(
           viewModel: _dashboardViewModel,
           settingsViewModel: _settingsViewModel,

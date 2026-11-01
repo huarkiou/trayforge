@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/l10n/language_names.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
@@ -102,7 +103,10 @@ class _SettingsPageState extends State<SettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+        Text(
+          label,
+          style: TextStyle(fontSize: 13, color: context.secondaryTextColor),
+        ),
         const SizedBox(height: 4),
         Tooltip(
           message: tooltip,
@@ -165,7 +169,7 @@ class _SettingsPageState extends State<SettingsPage> {
           hint ?? AppLocalizations.of(context).settingsTakesEffectOnStart,
           style: Theme.of(
             context,
-          ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+          ).textTheme.bodySmall?.copyWith(color: context.secondaryTextColor),
         ),
       ],
     );

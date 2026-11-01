@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_reorderable_grid_view/widgets/widgets.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/screens/process_detail_screen.dart';
@@ -154,7 +155,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Text(
             l10n.dashboardEmpty,
-            style: const TextStyle(fontSize: 18, color: Colors.grey),
+            style: TextStyle(fontSize: 18, color: context.secondaryTextColor),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),

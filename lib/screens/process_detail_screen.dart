@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
 import 'package:trayforge/widgets/follow_scroll.dart';
@@ -190,7 +191,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
           return Center(
             child: Text(
               AppLocalizations.of(context).processNoMatchingLines,
-              style: const TextStyle(color: Colors.grey),
+              style: TextStyle(color: context.secondaryTextColor),
             ),
           );
         }
@@ -199,7 +200,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
           return Center(
             child: Text(
               AppLocalizations.of(context).noOutputYet,
-              style: const TextStyle(color: Colors.grey),
+              style: TextStyle(color: context.secondaryTextColor),
             ),
           );
         }
@@ -210,7 +211,8 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
           child: SelectableText(
             filtered.join('\n'),
             style: const TextStyle(
-              fontFamily: 'monospace',
+              fontFamily: monoFontFamily,
+              fontFamilyFallback: monoFontFallback,
               fontSize: 12,
               height: 1.4,
             ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/l10n/state_labels.dart';
 import 'package:trayforge/viewmodels/service_viewmodel.dart';
@@ -150,9 +151,8 @@ class ServiceCard extends StatelessWidget {
                           ),
                           Text(
                             _summary(AppLocalizations.of(context)),
-                            style: Theme.of(
-                              context,
-                            ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: context.secondaryTextColor),
                           ),
                         ],
                       ),
@@ -228,7 +228,10 @@ class ServiceGridCard extends StatelessWidget {
                       viewModel.runningCount,
                       viewModel.totalCount,
                     ),
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.secondaryTextColor,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

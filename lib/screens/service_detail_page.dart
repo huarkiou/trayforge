@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/viewmodels/service_viewmodel.dart';
 import 'package:trayforge/widgets/follow_scroll.dart';
@@ -95,7 +96,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
             padding: const EdgeInsets.all(12),
             child: Text(
               AppLocalizations.of(context).serviceQuerying,
-              style: const TextStyle(color: Colors.grey),
+              style: TextStyle(color: context.secondaryTextColor),
             ),
           );
         }
@@ -122,7 +123,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
           return Center(
             child: Text(
               AppLocalizations.of(context).serviceNoActivity,
-              style: const TextStyle(color: Colors.grey),
+              style: TextStyle(color: context.secondaryTextColor),
             ),
           );
         }

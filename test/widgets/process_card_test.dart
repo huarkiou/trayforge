@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
 import 'package:trayforge/widgets/process_card.dart';
+import 'package:trayforge/widgets/status_dot.dart';
 
 import '../helpers/localized_app.dart';
 
@@ -173,7 +175,7 @@ void main() {
       expect(find.text('No output yet'), findsOneWidget);
     });
 
-    testWidgets('renders output lines in monospace', (tester) async {
+    testWidgets('renders output lines in the monospace stack', (tester) async {
       fakeManager.emitOutput('test-svc', 'hello world');
       await tester.pumpWidget(buildCard());
       // Wait for the ListenableBuilder to rebuild.
@@ -184,7 +186,8 @@ void main() {
           (w) => w is Text && w.data != null && w.data!.contains('hello world'),
         ),
       );
-      expect(text.style?.fontFamily, 'monospace');
+      expect(text.style?.fontFamily, monoFontFamily);
+      expect(text.style?.fontFamilyFallback, monoFontFallback);
     });
 
     testWidgets('renders last N lines of output', (tester) async {
@@ -241,30 +244,34 @@ void main() {
       expect(dot, isNotNull);
     });
 
-    testWidgets('shows grey dot for stopped/starting/stopping/cooldown', (
-      tester,
-    ) async {
-      for (final state in [
-        ProcState.stopped,
-        ProcState.starting,
-        ProcState.stopping,
-        ProcState.cooldown,
-      ]) {
-        fakeManager.setState('test-svc', state);
-        await tester.pumpWidget(buildCard());
-        await tester.pump();
+    testWidgets(
+      'shows the neutral dot for stopped/starting/stopping/cooldown',
+      (tester) async {
+        for (final state in [
+          ProcState.stopped,
+          ProcState.starting,
+          ProcState.stopping,
+          ProcState.cooldown,
+        ]) {
+          fakeManager.setState('test-svc', state);
+          await tester.pumpWidget(buildCard());
+          await tester.pump();
 
-        final dot = tester.widget<Container>(
-          find.byWidgetPredicate(
-            (w) =>
-                w is Container &&
-                w.decoration is BoxDecoration &&
-                (w.decoration as BoxDecoration).color == Colors.grey,
-          ),
-        );
-        expect(dot, isNotNull, reason: 'Expected grey dot for $state');
-      }
-    });
+          // Asserted against the shared mapping instead of a literal shade, so
+          // retuning the neutral colour does not fail a behavioural test.
+          final neutral = statusColor(state);
+          final dot = tester.widget<Container>(
+            find.byWidgetPredicate(
+              (w) =>
+                  w is Container &&
+                  w.decoration is BoxDecoration &&
+                  (w.decoration as BoxDecoration).color == neutral,
+            ),
+          );
+          expect(dot, isNotNull, reason: 'Expected the neutral dot for $state');
+        }
+      },
+    );
 
     // ---- Toggle button ----
 
