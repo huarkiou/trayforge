@@ -36,8 +36,11 @@ solve.
    (`language` in `config.json`, optional) holds a shipped tag; **absent means
    follow the OS**. It is a global like `dashboard_layout`: read on reload,
    carried by both save paths, written only when the user picks something.
-   Resolution order — config tag → platform locale (matched by language code) →
-   English — lives in `lib/l10n/locale_resolution.dart` and never throws; an
+   Resolution order — config tag → the platform's preferred-language list, in
+   order, matched by language code → English — lives in
+   `lib/l10n/locale_resolution.dart` and never throws; walking the whole list
+   (not just its first entry) is what keeps the tray menu and the window title in
+   step with `MaterialApp`, which resolves the same list. An
    unsupported or malformed tag is treated as "follow the OS" rather than as a
    corrupted config, because a cosmetic field must not cost the user their units.
 4. **Non-widget consumers take the strings as a parameter.**

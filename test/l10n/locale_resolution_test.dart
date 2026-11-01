@@ -30,46 +30,66 @@ void main() {
   });
 
   group('resolveAppLocale', () {
-    test('the configured tag wins over the system locale', () {
+    test('the configured tag wins over the system locales', () {
       expect(
-        resolveAppLocale('zh', systemLocale: const Locale('en', 'US')),
+        resolveAppLocale('zh', systemLocales: const [Locale('en', 'US')]),
         const Locale('zh'),
       );
       expect(
-        resolveAppLocale('en', systemLocale: const Locale('zh', 'CN')),
+        resolveAppLocale('en', systemLocales: const [Locale('zh', 'CN')]),
         const Locale('en'),
       );
     });
 
-    test('follows the system locale when no tag is configured', () {
+    test('follows the system locales when no tag is configured', () {
       expect(
-        resolveAppLocale(null, systemLocale: const Locale('zh')),
+        resolveAppLocale(null, systemLocales: const [Locale('zh')]),
         const Locale('zh'),
       );
       expect(
-        resolveAppLocale(null, systemLocale: const Locale('zh', 'CN')),
+        resolveAppLocale(null, systemLocales: const [Locale('zh', 'CN')]),
         const Locale('zh'),
       );
     });
 
     test('matches a system locale whose country/script we do not ship', () {
       expect(
-        resolveAppLocale(null, systemLocale: const Locale('zh', 'TW')),
+        resolveAppLocale(null, systemLocales: const [Locale('zh', 'TW')]),
         const Locale('zh'),
         reason: 'one variant per language ships, and it is the best match',
       );
     });
 
-    test('falls back to English for an unsupported system locale', () {
+    test('falls back to English for unsupported system locales', () {
       expect(
-        resolveAppLocale(null, systemLocale: const Locale('ja', 'JP')),
+        resolveAppLocale(null, systemLocales: const [Locale('ja', 'JP')]),
+        const Locale('en'),
+      );
+    });
+
+    test('walks the preferred locale list in order', () {
+      // MaterialApp resolves the whole list; the tray menu and the window title
+      // must land on the same language, not on English just because the first
+      // preferred language is one we do not ship.
+      expect(
+        resolveAppLocale(
+          null,
+          systemLocales: const [Locale('ja', 'JP'), Locale('zh', 'CN')],
+        ),
+        const Locale('zh'),
+      );
+      expect(
+        resolveAppLocale(
+          null,
+          systemLocales: const [Locale('ja', 'JP'), Locale('en', 'US')],
+        ),
         const Locale('en'),
       );
     });
 
     test('an unsupported configured tag is treated as "follow the system"', () {
       expect(
-        resolveAppLocale('ja', systemLocale: const Locale('zh')),
+        resolveAppLocale('ja', systemLocales: const [Locale('zh')]),
         const Locale('zh'),
       );
     });
@@ -89,7 +109,10 @@ void main() {
 
     test('never throws for an unusable tag', () {
       expect(
-        localizationsFor('ja', systemLocale: const Locale('en')).settingsTitle,
+        localizationsFor(
+          'ja',
+          systemLocales: const [Locale('en')],
+        ).settingsTitle,
         'Settings',
       );
     });

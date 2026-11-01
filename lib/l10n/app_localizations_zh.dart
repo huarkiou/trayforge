@@ -249,11 +249,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get processDeleteRunningAction => '停止并删除';
 
   @override
-  String invalidRegex(String message) {
-    return '无效的正则表达式：$message';
-  }
-
-  @override
   String get editServiceGroupTooltip => '编辑服务组';
 
   @override

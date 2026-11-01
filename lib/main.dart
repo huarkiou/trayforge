@@ -11,6 +11,7 @@ import 'package:trayforge/foundation/logger.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/foundation/process_elevation_win32.dart';
 import 'package:trayforge/l10n/app_localizations.dart';
+import 'package:trayforge/l10n/locale_resolution.dart';
 import 'package:trayforge/screens/dashboard_screen.dart';
 import 'package:trayforge/services/autostart.dart';
 import 'package:trayforge/services/config_store.dart';
@@ -42,12 +43,6 @@ Timer? _wakeTimer;
 /// Read once at startup; it decides the window-title suffix and is carried into
 /// the language-change handler so a language switch keeps the marker.
 bool _elevated = false;
-
-/// The language tag the tray and window title were last built with.
-///
-/// `SettingsViewModel` notifies on every setting (the numeric steppers
-/// included), but only a language change repaints the non-widget surfaces.
-String? _lastLanguage;
 
 /// Whether a system tray (StatusNotifierWatcher on Linux) is available.
 ///
@@ -137,10 +132,10 @@ Future<void> main(List<String> args) async {
 
   // Tray state changes -> update icon and menu.
   _trayViewModel.addListener(_onTrayStateChanged);
-  // A language change repaints the window title and the tray menu; every other
-  // settings change is ignored by the tag guard inside the handler.
-  _lastLanguage = _settingsViewModel.language;
-  _settingsViewModel.addListener(_onLanguageChanged);
+  // A language change repaints the window title and the tray menu. Listening to
+  // the locale notifier (not the settings view model) is what keeps a stepper
+  // edit from rebuilding them.
+  _settingsViewModel.localeListenable.addListener(_onLocaleChanged);
 
   // ---- Window setup ----
 
@@ -148,7 +143,7 @@ Future<void> main(List<String> args) async {
   // so the deployment's privilege level is visible at a glance.
   _elevated = isCurrentProcessElevated();
   await windowManager.setPreventClose(true);
-  await _applyWindowTitle(_settingsViewModel.localizations);
+  await _applyWindowTitle(localizationsFor(_settingsViewModel.language));
 
   // Set window icon (reused from Python trayforge).
   try {
@@ -169,7 +164,7 @@ Future<void> main(List<String> args) async {
 
   await DesktopTray.instance.setIcon(_trayViewModel.iconPath);
   await DesktopTray.instance.setToolTip('trayforge');
-  await _applyTrayMenu(_settingsViewModel.localizations);
+  await _applyTrayMenu(localizationsFor(_settingsViewModel.language));
   DesktopTray.instance.addListener(_AppTrayListener());
 
   // ---- Window visibility ----
@@ -230,7 +225,7 @@ Future<void> _exitApp() async {
   }
 
   _trayViewModel.removeListener(_onTrayStateChanged);
-  _settingsViewModel.removeListener(_onLanguageChanged);
+  _settingsViewModel.localeListenable.removeListener(_onLocaleChanged);
   _trayViewModel.dispose();
   _dashboardViewModel.dispose();
   _settingsViewModel.dispose();
@@ -253,20 +248,16 @@ Future<void> _exitApp() async {
 void _onTrayStateChanged() {
   // Fire-and-forget: update tray icon and menu when state changes.
   unawaited(_applyTrayIcon());
-  unawaited(_applyTrayMenu(_settingsViewModel.localizations));
+  unawaited(_applyTrayMenu(localizationsFor(_settingsViewModel.language)));
 }
 
 /// Repaints the two surfaces that live outside the widget tree when the UI
 /// language changed: the window title and the tray context menu.
 ///
-/// [SettingsViewModel] notifies on every setting, so the tag guard keeps a
-/// stepper edit from rebuilding them.
-void _onLanguageChanged() {
-  final language = _settingsViewModel.language;
-  if (language == _lastLanguage) return;
-  _lastLanguage = language;
-
-  final l10n = _settingsViewModel.localizations;
+/// Bound to [SettingsViewModel.localeListenable], which fires only on a language
+/// change — the settings notifier itself fires for the numeric steppers too.
+void _onLocaleChanged() {
+  final l10n = localizationsFor(_settingsViewModel.language);
   unawaited(_applyWindowTitle(l10n));
   unawaited(_applyTrayMenu(l10n));
 }

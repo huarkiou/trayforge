@@ -155,11 +155,12 @@ subscribe to real streams.
 
 The UI language: English (`en`) or Simplified Chinese (`zh`). `AppConfig.language`
 (JSON `language`) holds the chosen tag, and its **absence means "follow the
-OS"**. Resolution — in `lib/l10n/locale_resolution.dart` — is config tag →
-platform locale (matched by language code, so `zh_Hans_CN` and `zh_TW` both land
-on `zh`) → English, and it never throws. The stored value is normalized to a
-shipped tag on read, so a hand-edited `zh-CN` reads as `zh` and an unsupported
-`ja` reads as "follow the OS". The widget tree resolves through `MaterialApp`
+OS"**. Resolution — in `lib/l10n/locale_resolution.dart` — is config tag → the
+platform's preferred-language list, matched by language code (so `zh_Hans_CN` and
+`zh_TW` both land on `zh`) → English, and it never throws. `AppConfig` stores the
+tag verbatim; `SettingsViewModel` normalizes it on read, so a hand-edited `zh-CN`
+reads as `zh` and an unsupported `ja` reads as "follow the OS" (and the next save
+drops it). The widget tree resolves through `MaterialApp`
 and the generated `AppLocalizations`; the tray menu and the window title take
 the resolved `AppLocalizations` as a parameter, because they are built outside
 the widget tree. Two things stay English on purpose: the process/service

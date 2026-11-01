@@ -134,8 +134,9 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
       setState(() => _regexError = null);
     } on FormatException catch (e) {
       setState(
-        () =>
-            _regexError = AppLocalizations.of(context).invalidRegex(e.message),
+        () => _regexError = AppLocalizations.of(
+          context,
+        ).validationWebuiPattern(e.message),
       );
     }
   }
@@ -166,11 +167,7 @@ class _ProcessEditPageState extends State<ProcessEditPage> {
             maxLines: null,
             expands: true,
             textAlignVertical: TextAlignVertical.top,
-            style: const TextStyle(
-              fontFamily: monoFontFamily,
-              fontFamilyFallback: monoFontFallback,
-              fontSize: 13,
-            ),
+            style: monoStyle(fontSize: 13),
             decoration: InputDecoration(
               hintText: l10n.editCommandHint,
               border: const OutlineInputBorder(),

@@ -5,7 +5,6 @@ import 'dart:ui' show Locale;
 
 import 'package:flutter/foundation.dart';
 import 'package:trayforge/foundation/models.dart';
-import 'package:trayforge/l10n/app_localizations.dart';
 import 'package:trayforge/l10n/locale_resolution.dart';
 import 'package:trayforge/services/autostart.dart';
 import 'package:trayforge/services/config_store.dart';
@@ -88,14 +87,9 @@ class SettingsViewModel extends ChangeNotifier {
   /// A listenable that fires only when the language changes.
   ///
   /// The settings notifier fires for every setting (the numeric steppers
-  /// included), but `main` only needs to rebuild the `MaterialApp` when the
-  /// locale moved — rebuilding it on a stepper edit would churn the whole
-  /// widget tree.
+  /// included), but `main` only needs to rebuild the `MaterialApp` — and repaint
+  /// the window title and tray menu — when the locale moved.
   ValueListenable<Locale?> get localeListenable => _locale;
-
-  /// The resolved strings for code outside the widget tree (tray, window
-  /// title). Inside a widget, use `AppLocalizations.of(context)`.
-  AppLocalizations get localizations => localizationsFor(_language);
 
   /// Updates the UI language and persists it.
   ///

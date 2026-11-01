@@ -7,7 +7,6 @@ import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/services/process_manager.dart';
 import 'package:trayforge/viewmodels/process_viewmodel.dart';
 import 'package:trayforge/widgets/process_card.dart';
-import 'package:trayforge/widgets/status_dot.dart';
 
 import '../helpers/localized_app.dart';
 
@@ -257,9 +256,10 @@ void main() {
           await tester.pumpWidget(buildCard());
           await tester.pump();
 
-          // Asserted against the shared mapping instead of a literal shade, so
-          // retuning the neutral colour does not fail a behavioural test.
-          final neutral = statusColor(state);
+          // The user-visible expectation: a non-running card shows the shared
+          // neutral dot. Asserted against the constant, not against
+          // statusColor(state), so the test cannot pass by definition.
+          final neutral = neutralStatusColor;
           final dot = tester.widget<Container>(
             find.byWidgetPredicate(
               (w) =>

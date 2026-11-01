@@ -24,19 +24,28 @@ Locale? parseLanguageTag(String? tag) {
 }
 
 /// The locale the app runs in: [configuredTag] when it is one we ship,
-/// otherwise [systemLocale] matched against [AppLocalizations.supportedLocales],
-/// otherwise English.
+/// otherwise the first of [systemLocales] (the platform's preferred languages,
+/// in order) that we ship, otherwise English.
+///
+/// Iterating the whole preferred list — rather than only the first entry — is
+/// what keeps the tray menu and the window title in step with `MaterialApp`,
+/// which resolves the same list: an English-first system that also prefers
+/// Chinese gets Chinese in both places, not Chinese in the window and English in
+/// the tray.
 ///
 /// Never throws: an unparsable or unsupported tag is treated like "follow the
-/// system", and an unsupported system locale falls back to the first supported
-/// locale (English).
-Locale resolveAppLocale(String? configuredTag, {Locale? systemLocale}) {
+/// system", and an unsupported system locale list falls back to the first
+/// supported locale (English).
+Locale resolveAppLocale(String? configuredTag, {List<Locale>? systemLocales}) {
   final configured = parseLanguageTag(configuredTag);
   if (configured != null) return configured;
 
-  final system = systemLocale ?? PlatformDispatcher.instance.locale;
-  return _shippedLocale(system.languageCode) ??
-      AppLocalizations.supportedLocales.first;
+  final preferred = systemLocales ?? PlatformDispatcher.instance.locales;
+  for (final candidate in preferred) {
+    final shipped = _shippedLocale(candidate.languageCode);
+    if (shipped != null) return shipped;
+  }
+  return AppLocalizations.supportedLocales.first;
 }
 
 /// The resolved [AppLocalizations] for [configuredTag].
@@ -45,9 +54,9 @@ Locale resolveAppLocale(String? configuredTag, {Locale? systemLocale}) {
 /// needs the app title before the first frame.
 AppLocalizations localizationsFor(
   String? configuredTag, {
-  Locale? systemLocale,
+  List<Locale>? systemLocales,
 }) => lookupAppLocalizations(
-  resolveAppLocale(configuredTag, systemLocale: systemLocale),
+  resolveAppLocale(configuredTag, systemLocales: systemLocales),
 );
 
 /// The shipped locale for [languageCode], or `null` when we do not ship one.

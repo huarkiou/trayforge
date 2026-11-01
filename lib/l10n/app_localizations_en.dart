@@ -255,11 +255,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get processDeleteRunningAction => 'Stop and Delete';
 
   @override
-  String invalidRegex(String message) {
-    return 'Invalid regex: $message';
-  }
-
-  @override
   String get editServiceGroupTooltip => 'Edit service group';
 
   @override

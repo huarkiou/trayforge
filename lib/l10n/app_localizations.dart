@@ -566,12 +566,6 @@ abstract class AppLocalizations {
   /// **'Stop and Delete'**
   String get processDeleteRunningAction;
 
-  /// No description provided for @invalidRegex.
-  ///
-  /// In en, this message translates to:
-  /// **'Invalid regex: {message}'**
-  String invalidRegex(String message);
-
   /// No description provided for @editServiceGroupTooltip.
   ///
   /// In en, this message translates to:

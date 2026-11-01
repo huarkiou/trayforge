@@ -132,11 +132,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: SelectableText(
             lines.join('\n'),
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 12,
-              height: 1.4,
-            ),
+            style: monoStyle(height: 1.4),
           ),
         );
       },

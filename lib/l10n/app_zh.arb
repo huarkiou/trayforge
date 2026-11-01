@@ -84,7 +84,6 @@
   "processDeleteBody": "删除“{name}”？此操作无法撤销。",
   "processDeleteRunningBody": "“{name}”正在运行。它将被停止，配置将被删除。",
   "processDeleteRunningAction": "停止并删除",
-  "invalidRegex": "无效的正则表达式：{message}",
 
   "editServiceGroupTooltip": "编辑服务组",
   "serviceStartTooltip": "启动服务",

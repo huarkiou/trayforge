@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/foundation/service_operator.dart';
 import 'package:trayforge/foundation/service_status.dart';
+import 'package:trayforge/l10n/locale_resolution.dart';
 import 'package:trayforge/l10n/validation_text.dart';
 import 'package:trayforge/services/autostart.dart';
 import 'package:trayforge/services/config_store.dart';
@@ -337,7 +338,8 @@ void main() {
 
         expect(viewModel.language, 'zh');
         expect(viewModel.locale, const Locale('zh'));
-        expect(viewModel.localizations.settingsTitle, '设置');
+        expect(viewModel.localeListenable.value, const Locale('zh'));
+        expect(localizationsFor(viewModel.language).settingsTitle, '设置');
         expect(configStore.load()?.language, 'zh');
         expect(notifications, greaterThan(0));
       });

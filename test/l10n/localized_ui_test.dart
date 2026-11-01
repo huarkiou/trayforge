@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trayforge/app_theme.dart';
 import 'package:trayforge/foundation/models.dart';
 import 'package:trayforge/screens/dashboard_screen.dart';
+import 'package:trayforge/screens/process_detail_screen.dart';
+import 'package:trayforge/screens/process_edit_page.dart';
+import 'package:trayforge/screens/service_detail_page.dart';
 import 'package:trayforge/screens/settings_page.dart';
 import 'package:trayforge/viewmodels/dashboard_viewmodel.dart';
+import 'package:trayforge/viewmodels/process_viewmodel.dart';
+import 'package:trayforge/viewmodels/service_viewmodel.dart';
 import 'package:trayforge/viewmodels/settings_viewmodel.dart';
+import 'package:trayforge/widgets/process_card.dart';
 import 'package:trayforge/widgets/status_dot.dart';
 
 import '../helpers/localized_app.dart';
@@ -50,20 +57,21 @@ Future<void> _pumpDashboard(WidgetTester tester, {Locale? locale}) async {
   );
 }
 
+ProcessViewModel _processViewModel(String name) => ProcessViewModel(
+  name: name,
+  processManager: StubProcessManager(),
+  outputHistoryLimit: 20,
+);
+
 DropdownButton<String> _languagePicker(WidgetTester tester) =>
     tester.widget<DropdownButton<String>>(find.byType(DropdownButton<String>));
-
-/// The labels of the language picker's entries, in order.
-List<String?> _languageOptions(WidgetTester tester) => _languagePicker(
-  tester,
-).items!.map((item) => (item.child as Text).data).toList(growable: false);
 
 /// Opens the picker and selects the entry labelled [label].
 Future<void> _pickLanguage(WidgetTester tester, String label) async {
   await tester.tap(find.byType(DropdownButton<String>));
   await tester.pumpAndSettle();
   // `hitTestable` skips the hidden items `DropdownButton` lays out to size
-  // itself, leaving the ones in the open menu.
+  // itself, leaving the visible ones in the open menu.
   await tester.tap(find.text(label).hitTestable());
   await tester.pumpAndSettle();
 }
@@ -96,6 +104,15 @@ void main() {
   });
 
   group('Settings', () {
+    testWidgets('renders in English under en', (tester) async {
+      await _pumpSettings(tester, locale: const Locale('en'));
+
+      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('Language'), findsOneWidget);
+      expect(find.text('System default'), findsOneWidget);
+      expect(find.text('设置'), findsNothing);
+    });
+
     testWidgets('renders in Chinese under zh', (tester) async {
       await _pumpSettings(tester, locale: const Locale('zh'));
 
@@ -106,14 +123,19 @@ void main() {
       expect(find.text('Settings'), findsNothing);
     });
 
-    testWidgets('the picker offers "System default" and both languages', (
+    testWidgets('the open picker lists "System default" and both languages', (
       tester,
     ) async {
       await _pumpSettings(tester);
 
-      // Each language is listed in itself, so the picker is readable whatever
-      // the current UI language is; "System default" comes from the UI language.
-      expect(_languageOptions(tester), ['System default', 'English', '简体中文']);
+      await tester.tap(find.byType(DropdownButton<String>));
+      await tester.pumpAndSettle();
+
+      // Only the entries in the open menu are hit-testable; each language is
+      // listed in itself so the picker stays readable in any UI language.
+      expect(find.text('System default').hitTestable(), findsOneWidget);
+      expect(find.text('English').hitTestable(), findsOneWidget);
+      expect(find.text('简体中文').hitTestable(), findsOneWidget);
     });
 
     testWidgets('picking a language persists it and re-localizes in place', (
@@ -156,6 +178,145 @@ void main() {
       expect(store.lastSaved?.language, isNull);
       expect(viewModel.localeListenable.value, isNull);
     });
+  });
+
+  group('Process card', () {
+    testWidgets('renders its state label and empty hint in Chinese', (
+      tester,
+    ) async {
+      final viewModel = _processViewModel('demo');
+      addTearDown(viewModel.dispose);
+
+      // The grid tile carries the state label; the list card carries the
+      // output placeholder.
+      await tester.pumpWidget(
+        localizedApp(
+          home: Scaffold(
+            body: ProcessGridCard(viewModel: viewModel, onTap: () {}),
+          ),
+          locale: const Locale('zh'),
+        ),
+      );
+      expect(find.text('已停止'), findsOneWidget);
+      expect(find.text('Stopped'), findsNothing);
+
+      await tester.pumpWidget(
+        localizedApp(
+          home: Scaffold(
+            body: ProcessCard(viewModel: viewModel, onTap: () {}),
+          ),
+          locale: const Locale('zh'),
+        ),
+      );
+      expect(find.text('暂无输出'), findsOneWidget);
+      expect(find.text('No output yet'), findsNothing);
+    });
+  });
+
+  group('Process detail', () {
+    testWidgets('renders its toolbar and placeholder in Chinese', (
+      tester,
+    ) async {
+      final viewModel = _processViewModel('demo');
+      addTearDown(viewModel.dispose);
+
+      await tester.pumpWidget(
+        localizedApp(
+          home: ProcessDetailPage(viewModel: viewModel, onEditTap: () {}),
+          locale: const Locale('zh'),
+        ),
+      );
+
+      expect(find.byTooltip('编辑进程'), findsOneWidget);
+      expect(find.byTooltip('清空输出'), findsOneWidget);
+      expect(find.byTooltip('搜索输出'), findsOneWidget);
+      expect(find.text('暂无输出'), findsOneWidget);
+    });
+  });
+
+  group('Process edit form', () {
+    testWidgets('renders the add form in Chinese', (tester) async {
+      final store = RecordingConfigStore(const AppConfig());
+      final viewModel = SettingsViewModel(
+        configStore: store,
+        processManager: StubProcessManager(),
+        autostart: StubAutostart(),
+      );
+      addTearDown(viewModel.dispose);
+
+      await tester.pumpWidget(
+        localizedApp(
+          home: ProcessEditPage(settingsViewModel: viewModel),
+          locale: const Locale('zh'),
+        ),
+      );
+
+      expect(find.text('添加进程'), findsOneWidget);
+      expect(find.text('名称 *'), findsOneWidget);
+      expect(find.text('单实例'), findsOneWidget);
+      expect(find.byTooltip('浏览…'), findsOneWidget);
+    });
+
+    testWidgets('renders the delete dialog in Chinese', (tester) async {
+      const config = ProcessConfig(name: 'demo', cmd: 'run.exe');
+      final store = RecordingConfigStore(const AppConfig(units: [config]));
+      final viewModel = SettingsViewModel(
+        configStore: store,
+        processManager: StubProcessManager(),
+        autostart: StubAutostart(),
+      );
+      addTearDown(viewModel.dispose);
+
+      await tester.pumpWidget(
+        localizedApp(
+          home: ProcessEditPage(
+            settingsViewModel: viewModel,
+            initial: config,
+            editIndex: 0,
+          ),
+          locale: const Locale('zh'),
+        ),
+      );
+
+      await tester.tap(find.text('删除'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('删除进程？'), findsOneWidget);
+      expect(find.textContaining('demo'), findsWidgets);
+      expect(find.text('取消'), findsOneWidget);
+    });
+  });
+
+  group('Service detail', () {
+    testWidgets(
+      'renders its placeholder and log in the mono stack in Chinese',
+      (tester) async {
+        final manager = FakeServiceManager();
+        final viewModel = ServiceViewModel(
+          name: 'demo',
+          serviceManager: manager,
+          outputHistoryLimit: 20,
+        );
+        addTearDown(viewModel.dispose);
+
+        await tester.pumpWidget(
+          localizedApp(
+            home: ServiceDetailPage(viewModel: viewModel),
+            locale: const Locale('zh'),
+          ),
+        );
+
+        expect(find.text('暂无活动'), findsOneWidget);
+        expect(find.byTooltip('清空日志'), findsOneWidget);
+
+        manager.emitOutput('demo', 'Spooler: 已停止');
+        await tester.pump();
+
+        final log = tester.widget<SelectableText>(find.byType(SelectableText));
+        expect(log.style?.fontFamily, monoFontFamily);
+        expect(log.style?.fontFamilyFallback, monoFontFallback);
+      },
+    );
   });
 
   group('state labels', () {

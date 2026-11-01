@@ -80,9 +80,11 @@ choice is persisted as `language` in `config.json` and applies immediately
 - **`lib/l10n/locale_resolution.dart`** owns the non-widget side of the choice:
   `parseLanguageTag` (tag → supported `Locale`, or `null` when absent or
   unsupported), `resolveAppLocale` (configured tag, else
-  `PlatformDispatcher.instance.locale`, matched against
-  `AppLocalizations.supportedLocales` by language code — a `zh_Hans_CN` system
-  locale resolves to `zh` — else English) and `localizationsFor` (synchronous
+  `PlatformDispatcher.instance.locales` — the preferred-language list, walked in
+  order and matched against `AppLocalizations.supportedLocales` by language code,
+  so a `zh_Hans_CN` system locale resolves to `zh` and an unsupported first
+  preference falls through to the next one — else English) and
+  `localizationsFor` (synchronous
   `AppLocalizations` for code that has no `BuildContext`: tray menu, window
   title). The native display names ("English", "简体中文") live in
   `lib/l10n/language_names.dart`: they are deliberately not translated, so they

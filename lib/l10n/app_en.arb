@@ -98,14 +98,6 @@
     }
   },
   "processDeleteRunningAction": "Stop and Delete",
-  "invalidRegex": "Invalid regex: {message}",
-  "@invalidRegex": {
-    "placeholders": {
-      "message": {
-        "type": "String"
-      }
-    }
-  },
 
   "editServiceGroupTooltip": "Edit service group",
   "serviceStartTooltip": "Start services",

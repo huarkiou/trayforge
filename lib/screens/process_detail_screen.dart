@@ -210,12 +210,7 @@ class _ProcessDetailPageState extends State<ProcessDetailPage> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: SelectableText(
             filtered.join('\n'),
-            style: const TextStyle(
-              fontFamily: monoFontFamily,
-              fontFamilyFallback: monoFontFallback,
-              fontSize: 12,
-              height: 1.4,
-            ),
+            style: monoStyle(height: 1.4),
           ),
         );
       },
