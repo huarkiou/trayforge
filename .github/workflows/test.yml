@@ -19,9 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned on purpose: `dart format` output is not stable across Dart
+      # versions, so an unpinned SDK makes the Format check fail on code that
+      # each developer formats correctly with their own local SDK.
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.47.9
           cache: true
 
       - name: Install dependencies

@@ -60,28 +60,24 @@ void main() {
       skip: !Platform.isWindows,
     );
 
-    test(
-      'stays on the UAC broker when TrayForge is not elevated',
-      () async {
-        final runner = _RecordingRunner(() => false);
+    test('stays on the UAC broker when TrayForge is not elevated', () async {
+      final runner = _RecordingRunner(() => false);
 
-        // A missing executable is rejected before the broker is invoked, so
-        // the broker branch is exercised without showing a UAC prompt.
-        await expectLater(
-          runner.startElevated(
-            r'C:\trayforge-test\definitely-missing.exe',
-            const [],
-          ),
-          throwsA(isA<ElevationException>()),
-        );
-        expect(
-          runner.startCalls,
-          0,
-          reason: 'a plain launch would not elevate at all',
-        );
-      },
-      skip: !Platform.isWindows,
-    );
+      // A missing executable is rejected before the broker is invoked, so
+      // the broker branch is exercised without showing a UAC prompt.
+      await expectLater(
+        runner.startElevated(
+          r'C:\trayforge-test\definitely-missing.exe',
+          const [],
+        ),
+        throwsA(isA<ElevationException>()),
+      );
+      expect(
+        runner.startCalls,
+        0,
+        reason: 'a plain launch would not elevate at all',
+      );
+    }, skip: !Platform.isWindows);
 
     test(
       'falls back to the UAC broker when the elevation probe throws',

@@ -101,11 +101,11 @@ void main() {
       final results = await host.start(['a.service']);
 
       expect(results.single.ok, isTrue);
-      expect(
-        commands.calls.map((c) => c.first).toList(),
-        ['systemctl', 'pkexec', 'systemctl'],
-        reason: 'direct attempt, escalation, then a verifying re-query',
-      );
+      expect(commands.calls.map((c) => c.first).toList(), [
+        'systemctl',
+        'pkexec',
+        'systemctl',
+      ], reason: 'direct attempt, escalation, then a verifying re-query');
       expect(commands.calls[1], [
         'pkexec',
         'systemctl',
