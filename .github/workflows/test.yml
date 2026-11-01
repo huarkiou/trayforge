@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Pinned on purpose: `dart format` output is not stable across Dart
       # versions, so an unpinned SDK makes the Format check fail on code that

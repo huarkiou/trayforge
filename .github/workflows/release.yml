@@ -26,7 +26,7 @@ jobs:
     outputs:
       tag: ${{ steps.gen.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: gen
@@ -52,16 +52,17 @@ jobs:
           group "Features" $RANGE --grep="^feat"
           group "Fixes" $RANGE --grep="^fix"
           group "Other" $RANGE -E --grep="^(chore|docs|ci|refactor|build)"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: changelog
           path: CHANGELOG.md
+          overwrite: true
 
   build-windows:
     needs: validate
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -72,16 +73,17 @@ jobs:
         run: flutter build windows --release
       - name: Package zip
         run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath trayforge-windows-${{ inputs.version }}.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: trayforge-windows-${{ inputs.version }}
           path: trayforge-windows-${{ inputs.version }}.zip
+          overwrite: true
 
   build-linux:
     needs: validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -98,10 +100,11 @@ jobs:
           flutter build linux --release
       - name: Package tar.gz
         run: cd build/linux/x64/release/bundle && tar czf ../../../../../trayforge-linux-${{ inputs.version }}.tar.gz .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: trayforge-linux-${{ inputs.version }}
           path: trayforge-linux-${{ inputs.version }}.tar.gz
+          overwrite: true
 
   release:
     needs: [changelog, build-windows, build-linux]
@@ -109,16 +112,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: changelog
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: trayforge-windows-${{ inputs.version }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: trayforge-linux-${{ inputs.version }}
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.changelog.outputs.tag }}
           name: TrayForge ${{ needs.changelog.outputs.tag }}
